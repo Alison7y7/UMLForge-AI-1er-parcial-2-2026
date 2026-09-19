@@ -10,7 +10,6 @@ export default function UmlRelationEdge({
   sourcePosition,
   targetPosition,
   style = {},
-  markerEnd,
   data,
 }: EdgeProps) {
   const [edgePath, labelX, labelY] = getBezierPath({
@@ -23,17 +22,36 @@ export default function UmlRelationEdge({
   });
 
   const tipo = data?.tipo as string;
+  const nombre = data?.nombre as string;
   const multiplicidadOrigen = data?.multiplicidadOrigen as string;
   const multiplicidadDestino = data?.multiplicidadDestino as string;
 
-  // Custom stroke according to UML type (e.g. solid or dashed)
   let customStyle = { ...style, strokeWidth: 2, stroke: '#8B5CF6' };
+  let markerEnd = '';
+
+  switch (tipo) {
+    case 'AGREGACION':
+      markerEnd = 'url(#agregacion-marker)';
+      break;
+    case 'COMPOSICION':
+      markerEnd = 'url(#composicion-marker)';
+      break;
+    case 'GENERALIZACION':
+      markerEnd = 'url(#generalizacion-marker)';
+      break;
+    case 'DEPENDENCIA':
+      markerEnd = 'url(#dependencia-marker)';
+      customStyle.strokeDasharray = '5,5';
+      break;
+    default:
+      // ASOCIACION
+      break;
+  }
   
   return (
     <>
       <BaseEdge path={edgePath} markerEnd={markerEnd} style={customStyle} id={id} />
       
-      {/* Edge Label Renderer for Multiplicities */}
       <EdgeLabelRenderer>
         <div
           style={{
@@ -43,8 +61,9 @@ export default function UmlRelationEdge({
           }}
           className="nodrag nopan"
         >
-          <div className="bg-white/80 backdrop-blur-sm px-2 py-0.5 rounded text-[10px] font-bold text-lila-main border border-lila-light/50 shadow-sm cursor-pointer hover:bg-lila-light/50 transition-colors">
-            {tipo}
+          <div className="bg-white/80 backdrop-blur-sm px-2 py-0.5 rounded text-[10px] font-bold text-lila-main border border-lila-light/50 shadow-sm cursor-pointer hover:bg-lila-light/50 transition-colors flex flex-col items-center">
+            <span className="text-[8px] opacity-70 uppercase tracking-widest">{tipo}</span>
+            {nombre && <span>{nombre}</span>}
           </div>
         </div>
         
@@ -53,10 +72,10 @@ export default function UmlRelationEdge({
            <div
            style={{
              position: 'absolute',
-             transform: `translate(-50%, -50%) translate(${sourceX + (labelX - sourceX)*0.2}px, ${sourceY + (labelY - sourceY)*0.2}px)`,
+             transform: `translate(-50%, -50%) translate(${sourceX + (labelX - sourceX)*0.15}px, ${sourceY + (labelY - sourceY)*0.15}px)`,
              pointerEvents: 'none',
            }}
-           className="nodrag nopan text-[11px] font-mono font-semibold text-gray-500 bg-white/70 px-1 rounded"
+           className="nodrag nopan text-[11px] font-mono font-semibold text-gray-700 bg-white/90 px-1 rounded shadow-sm border border-gray-100"
          >
            {multiplicidadOrigen}
          </div>
@@ -67,10 +86,10 @@ export default function UmlRelationEdge({
            <div
            style={{
              position: 'absolute',
-             transform: `translate(-50%, -50%) translate(${targetX + (labelX - targetX)*0.2}px, ${targetY + (labelY - targetY)*0.2}px)`,
+             transform: `translate(-50%, -50%) translate(${targetX + (labelX - targetX)*0.15}px, ${targetY + (labelY - targetY)*0.15}px)`,
              pointerEvents: 'none',
            }}
-           className="nodrag nopan text-[11px] font-mono font-semibold text-gray-500 bg-white/70 px-1 rounded"
+           className="nodrag nopan text-[11px] font-mono font-semibold text-gray-700 bg-white/90 px-1 rounded shadow-sm border border-gray-100"
          >
            {multiplicidadDestino}
          </div>

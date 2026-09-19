@@ -38,6 +38,19 @@ public class UsuarioController {
         return ResponseEntity.ok(usuarioService.obtenerUsuario(id));
     }
 
+    @GetMapping("/buscar")
+    public ResponseEntity<UsuarioListResponse> buscarPorCorreo(@RequestParam String correo) {
+        Usuario u = usuarioRepository.findByCorreo(correo).orElse(null);
+        if (u == null) return ResponseEntity.notFound().build();
+        UsuarioListResponse res = new UsuarioListResponse();
+        res.setId(u.getId());
+        res.setNombre(u.getNombre());
+        res.setApellido(u.getApellido());
+        res.setCorreo(u.getCorreo());
+        res.setRol(u.getRol() != null ? u.getRol().getNombre() : null);
+        return ResponseEntity.ok(res);
+    }
+
     @PostMapping
     @PreAuthorize("hasAuthority('GESTIONAR_USUARIOS')")
     public ResponseEntity<UsuarioListResponse> crearUsuario(@RequestBody UsuarioRequest request, Authentication authentication) {

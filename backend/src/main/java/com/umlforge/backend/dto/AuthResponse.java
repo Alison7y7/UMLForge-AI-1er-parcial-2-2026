@@ -11,6 +11,16 @@ public class AuthResponse {
     private String rol;
     private List<String> permisos;
 
+    public AuthResponse(String token, Long id, String nombre, String apellido, String correo, String rol, List<String> permisos) {
+        this.token = token;
+        this.id = id;
+        this.nombre = nombre;
+        this.apellido = apellido;
+        this.correo = correo;
+        this.rol = rol;
+        this.permisos = permisos;
+    }
+
     // Getters and setters
     public String getToken() { return token; }
     public void setToken(String token) { this.token = token; }

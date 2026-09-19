@@ -152,4 +152,47 @@ public class InvitacionProyectoService {
         resp.setFechaExpiracion(inv.getFechaExpiracion());
         return resp;
     }
+
+    public java.util.List<InvitacionResponse> obtenerMisInvitaciones(Usuario invitado) {
+        return invitacionRepository.findByUsuarioInvitadoIdAndEstado(invitado.getId(), InvitacionEstado.PENDIENTE)
+                .stream().map(this::mapToResponse).collect(java.util.stream.Collectors.toList());
+    }
+
+    public java.util.List<InvitacionResponse> obtenerInvitacionesPorProyecto(Long proyectoId) {
+        return invitacionRepository.findByProyectoIdAndEstado(proyectoId, InvitacionEstado.PENDIENTE)
+                .stream().map(this::mapToResponse).collect(java.util.stream.Collectors.toList());
+    }
+
+    private InvitacionResponse mapToResponse(InvitacionProyecto inv) {
+        InvitacionResponse resp = new InvitacionResponse();
+        resp.setId(inv.getId());
+        resp.setProyectoId(inv.getProyecto().getId());
+        resp.setAnfitrionNombre(inv.getAnfitrion().getNombre() + " " + inv.getAnfitrion().getApellido());
+        resp.setEmailInvitado(inv.getUsuarioInvitado().getCorreo());
+        resp.setToken(inv.getToken());
+        resp.setEstado(inv.getEstado().name());
+        resp.setFechaCreacion(inv.getFechaCreacion());
+        resp.setFechaExpiracion(inv.getFechaExpiracion());
+        return resp;
+    }
+
+    @Transactional
+    public void cancelarInvitacion(Long proyectoId, Long invitacionId, Usuario actor) {
+        InvitacionProyecto inv = invitacionRepository.findById(invitacionId)
+                .orElseThrow(() -> new RuntimeException("Invitación no encontrada"));
+        
+        if (!inv.getProyecto().getId().equals(proyectoId)) {
+            throw new RuntimeException("La invitación no pertenece a este proyecto");
+        }
+        
+        boolean esAnfitrion = inv.getProyecto().getAnfitrion().getId().equals(actor.getId());
+        boolean esAdmin = actor.getRol() != null && actor.getRol().getNombre().equals("ADMIN");
+        if (!esAnfitrion && !esAdmin) {
+            throw new RuntimeException("No tiene permisos para cancelar esta invitación");
+        }
+        
+        invitacionRepository.delete(inv);
+        bitacoraService.registrarAccion(actor, inv.getProyecto(), "CANCELAR_INVITACION",
+                "Canceló la invitación a " + inv.getUsuarioInvitado().getCorreo());
+    }
 }
