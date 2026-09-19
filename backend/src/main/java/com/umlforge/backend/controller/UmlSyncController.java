@@ -10,12 +10,8 @@ import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.SimpMessageSendingOperations;
-import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
-
-import java.util.Map;
 
 @Controller
 public class UmlSyncController {
@@ -38,6 +34,12 @@ public class UmlSyncController {
         }
     }
 
+    @MessageMapping("/diagramas/{diagramaId}/presence")
+    public void requestPresence(@DestinationVariable Long diagramaId, SimpMessageHeaderAccessor headerAccessor) {
+        if (headerAccessor.getUser() == null) return;
+        collaborationService.requestPresence(diagramaId);
+    }
+
     @MessageMapping("/diagramas/{diagramaId}/lock")
     public void lockElement(@DestinationVariable Long diagramaId, @Payload UmlEventMessage event, SimpMessageHeaderAccessor headerAccessor) {
         if (headerAccessor.getUser() == null) return;
@@ -46,7 +48,7 @@ public class UmlSyncController {
         
         Long userId = user.getId();
         event.setUsuarioId(userId);
-        event.setUsuarioNombre(user.getNombre());
+        event.setUsuarioNombre(getNombreCompleto(user));
         
         if ("LOCK_ELEMENT".equals(event.getTipoEvento())) {
             boolean success = collaborationService.lockElement(diagramaId, event.getElementoId(), userId);
@@ -73,7 +75,7 @@ public class UmlSyncController {
             Usuario user = usuarioRepository.findByCorreo(headerAccessor.getUser().getName()).orElse(null);
             if (user != null) {
                 event.setUsuarioId(user.getId());
-                event.setUsuarioNombre(user.getNombre());
+                event.setUsuarioNombre(getNombreCompleto(user));
                 
                 // We don't save to DB here yet because the prompt says 
                 // "Después de modificaciones: actualizar modelJson del diagrama... [Guardar] en barra superior".
@@ -87,8 +89,14 @@ public class UmlSyncController {
 
     @EventListener
     public void handleWebSocketDisconnectListener(SessionDisconnectEvent event) {
-        StompHeaderAccessor headerAccessor = StompHeaderAccessor.wrap(event.getMessage());
-        collaborationService.userLeft(headerAccessor.getSessionId());
+        collaborationService.userLeft(event.getSessionId());
+    }
+
+    private String getNombreCompleto(Usuario user) {
+        String nombre = user.getNombre() == null ? "" : user.getNombre().trim();
+        String apellido = user.getApellido() == null ? "" : user.getApellido().trim();
+        String nombreCompleto = (nombre + " " + apellido).trim();
+        return nombreCompleto.isEmpty() ? user.getCorreo() : nombreCompleto;
     }
 }
 

@@ -20,18 +20,45 @@ import UmlClassNode from '../components/editor/UmlClassNode';
 import UmlRelationEdge from '../components/editor/UmlRelationEdge';
 import type { UmlModelJson } from '../types/uml';
 import { useCollaboration } from '../hooks/useCollaboration';
-import { useAuthStore } from '../store/authStore';
 
 const nodeTypes = { umlClass: UmlClassNode };
 const edgeTypes = { umlRelation: UmlRelationEdge };
 
+const activityDescriptions: Record<string, string> = {
+  NODE_CREATED: 'creó una clase',
+  NODE_MOVED: 'movió una clase',
+  NODE_UPDATED: 'actualizó una clase',
+  NODE_DELETED: 'eliminó una clase',
+  EDGE_CREATED: 'creó una relación',
+  EDGE_UPDATED: 'actualizó una relación',
+  EDGE_DELETED: 'eliminó una relación',
+  EDGE_INVERTED: 'invirtió una relación',
+  USER_JOINED: 'se conectó',
+  USER_LEFT: 'se desconectó',
+  LOCK_ELEMENT: 'comenzó a editar un elemento',
+  UNLOCK_ELEMENT: 'terminó de editar un elemento',
+  PRESENCE_UPDATE: 'actualizó la presencia',
+  HISTORY_UPDATE: 'actualizó el historial'
+};
+
+const getActivityDescription = (eventType: string) =>
+  activityDescriptions[eventType] || 'realizó una acción';
+
+const capitalize = (value: string) =>
+  value ? value.charAt(0).toUpperCase() + value.slice(1) : value;
+
+const getInitials = (name: string) => {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length >= 2) return `${words[0][0]}${words[1][0]}`.toUpperCase();
+  return (words[0] || '').slice(0, 2).toUpperCase();
+};
+
 export default function UMLEditor() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuthStore();
   
   const {
-    historyEvents, connectedUsers, connectionStatus,
+    historyEvents, connectedUsers, presenceReceived, connectionStatus,
     broadcastEvent
   } = useCollaboration(id);
 
@@ -64,23 +91,6 @@ export default function UMLEditor() {
     if (edge) broadcastEvent('EDGE_UPDATED', eid, { ...edge.data, ...data });
   };
 
-  const handleAutoSave = async () => {
-    if (!nombreDiagrama.trim() || nombreDiagrama === 'Cargando...') return;
-    try {
-      const modelo = {
-        clases: nodes.map(n => ({ id: n.id, nombre: n.data.nombre, estereotipo: n.data.estereotipo || '', posicionX: n.position.x, posicionY: n.position.y, atributos: n.data.atributos, metodos: n.data.metodos })),
-        relaciones: edges.map(e => ({ id: e.id, origen: e.source, destino: e.target, tipo: e.data?.tipo || 'ASOCIACION', nombre: e.data?.nombre || '', multiplicidadOrigen: e.data?.multiplicidadOrigen || '', multiplicidadDestino: e.data?.multiplicidadDestino || '' }))
-      };
-      await api.put(`/diagramas/${id}`, { nombre: nombreDiagrama, modeloJson: JSON.stringify(modelo) });
-    } catch (_e) {}
-  };
-
-  useEffect(() => {
-    if (loading) return;
-    const t = setTimeout(() => handleAutoSave(), 3000);
-    return () => clearTimeout(t);
-  }, [nodes, edges, nombreDiagrama]);
-  
   useEffect(() => {
     const fetchDiagrama = async () => {
       try {
@@ -229,7 +239,7 @@ export default function UMLEditor() {
   const handleDeleteClass = (n: Node) => {
     const nodeRelations = edges.filter(e => e.source === n.id || e.target === n.id);
     if (nodeRelations.length > 0) {
-      if (!window.confirm(`Esta clase tiene ${nodeRelations.length} relaciones asociadas.\nÂ¿Deseas eliminarla?`)) {
+      if (!window.confirm(`Esta clase tiene ${nodeRelations.length} relaciones asociadas.\n¿Deseas eliminarla?`)) {
         return;
       }
     }
@@ -265,8 +275,8 @@ export default function UMLEditor() {
     <div className="h-screen flex flex-col overflow-hidden bg-bg-main font-sans">
       
       {/* TOP BAR */}
-      <header className="h-14 bg-white/95 backdrop-blur-md border-b border-lila-light/50 flex items-center justify-between px-6 z-50 shadow-sm shrink-0">
-        <div className="flex items-center gap-4">
+      <header className="h-14 bg-white/95 backdrop-blur-md border-b border-lila-light/50 flex items-center justify-between gap-3 px-3 lg:px-6 z-50 shadow-sm shrink-0 overflow-x-auto">
+        <div className="flex items-center gap-4 shrink-0">
           <button 
             onClick={() => navigate(proyectoId ? `/proyectos/${proyectoId}` : '/dashboard')}
             className="p-1.5 hover:bg-lila-light/30 rounded-lg text-text-light hover:text-lila-main transition-colors"
@@ -282,22 +292,23 @@ export default function UMLEditor() {
             className="font-bold text-gray-800 bg-transparent border-none focus:outline-none focus:ring-2 focus:ring-lila-light/50 rounded px-2 py-1 max-w-[200px]"
             placeholder="Nombre del diagrama"
           />
-          <span className="text-xs text-gray-400 font-medium px-2 py-0.5 bg-gray-100 rounded-full">Cambios guardados</span>
+          <span className="text-xs text-gray-400 font-medium px-2 py-0.5 bg-gray-100 rounded-full">Guardado manual</span>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 shrink-0">
           <div className="flex items-center gap-2 border-r border-gray-200 pr-4">
-            <span className={`flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider ${connectionStatus === "Desconectado" ? "text-red-500" : connectionStatus === "Reconectando..." ? "text-yellow-500" : "text-green-500"}`}>
-              <div className={`w-2 h-2 rounded-full ${connectionStatus === "Desconectado" ? "bg-red-500" : connectionStatus === "Reconectando..." ? "bg-yellow-500" : "bg-green-500"}`}></div>
-              {connectionStatus}
+            <span className={`flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider ${connectionStatus === 'Sin conexión' ? 'text-red-500' : connectionStatus === 'Sincronizado' ? 'text-green-500' : 'text-yellow-500'}`}>
+              <div className={`w-2 h-2 rounded-full ${connectionStatus === 'Sin conexión' ? 'bg-red-500' : connectionStatus === 'Sincronizado' ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+              {connectionStatus === 'Sincronizado'
+                ? `En línea · ${connectedUsers.length} ${connectedUsers.length === 1 ? 'colaborador' : 'colaboradores'}`
+                : connectionStatus}
             </span>
             {connectionStatus === "Sincronizado" && connectedUsers.length > 0 && (
               <div className="flex items-center gap-2 ml-4">
-                <span className="text-xs font-medium text-gray-500">{connectedUsers.length} colaboradores</span>
                 <div className="flex -space-x-2">
                   {connectedUsers.map(u => (
-                    <div key={u.id} title={`${u.nombre} (${u.rol})`} className="w-7 h-7 rounded-full bg-lila-light border-2 border-white flex items-center justify-center text-[10px] font-bold text-lila-main">
-                      {u.nombre.substring(0, 2).toUpperCase()}
+                    <div key={u.id} title={`${u.nombre} — ${u.rol}`} className="w-7 h-7 rounded-full bg-lila-light border-2 border-white flex items-center justify-center text-[10px] font-bold text-lila-main">
+                      {getInitials(u.nombre)}
                     </div>
                   ))}
                 </div>
@@ -324,59 +335,66 @@ export default function UMLEditor() {
       </header>
 
       {/* WORKSPACE */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden relative min-w-0 min-h-0">
         
         {/* SIDEBAR HERRAMIENTAS */}
-        <aside className="w-48 bg-white/95 backdrop-blur-md border-r border-lila-light/50 flex flex-col py-4 z-40 shadow-[4px_0_24px_rgba(139,92,246,0.03)] overflow-y-auto shrink-0">
-          <div className="px-4 mb-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Herramientas</div>
+        <aside className="w-14 lg:w-48 bg-white/95 backdrop-blur-md border-r border-lila-light/50 flex flex-col py-4 z-40 shadow-[4px_0_24px_rgba(139,92,246,0.03)] overflow-y-auto shrink-0">
+          <div className="hidden lg:block px-4 mb-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Herramientas</div>
           <button 
             onClick={() => setSelectedTool('select')}
-            className={`flex items-center gap-3 px-4 py-2 text-sm transition-colors ${selectedTool === 'select' ? 'bg-lila-light/30 text-lila-main border-r-2 border-lila-main' : 'text-gray-600 hover:bg-gray-50'}`}
+            title="Seleccionar"
+            className={`flex items-center justify-center lg:justify-start gap-3 px-0 lg:px-4 py-2 text-sm transition-colors ${selectedTool === 'select' ? 'bg-lila-light/30 text-lila-main border-r-2 border-lila-main' : 'text-gray-600 hover:bg-gray-50'}`}
           >
-            <MousePointer2 className="w-4 h-4" /> Seleccionar
+            <MousePointer2 className="w-4 h-4 shrink-0" /> <span className="hidden lg:inline">Seleccionar</span>
           </button>
           <button 
             onClick={() => setSelectedTool('umlClass')}
-            className={`flex items-center gap-3 px-4 py-2 text-sm transition-colors ${selectedTool === 'umlClass' ? 'bg-lila-light/30 text-lila-main border-r-2 border-lila-main' : 'text-gray-600 hover:bg-gray-50'}`}
+            title="Clase"
+            className={`flex items-center justify-center lg:justify-start gap-3 px-0 lg:px-4 py-2 text-sm transition-colors ${selectedTool === 'umlClass' ? 'bg-lila-light/30 text-lila-main border-r-2 border-lila-main' : 'text-gray-600 hover:bg-gray-50'}`}
           >
-            <Square className="w-4 h-4" /> Clase
+            <Square className="w-4 h-4 shrink-0" /> <span className="hidden lg:inline">Clase</span>
           </button>
 
-          <div className="px-4 mt-6 mb-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Relaciones</div>
+          <div className="hidden lg:block px-4 mt-6 mb-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Relaciones</div>
           <button 
             onClick={() => setSelectedTool('ASOCIACION')}
-            className={`flex items-center gap-3 px-4 py-2 text-sm transition-colors ${selectedTool === 'ASOCIACION' ? 'bg-lila-light/30 text-lila-main border-r-2 border-lila-main' : 'text-gray-600 hover:bg-gray-50'}`}
+            title="Asociación"
+            className={`flex items-center justify-center lg:justify-start gap-3 px-0 lg:px-4 py-2 text-sm transition-colors ${selectedTool === 'ASOCIACION' ? 'bg-lila-light/30 text-lila-main border-r-2 border-lila-main' : 'text-gray-600 hover:bg-gray-50'}`}
           >
-            <ArrowRight className="w-4 h-4" /> Asociación
+            <ArrowRight className="w-4 h-4 shrink-0" /> <span className="hidden lg:inline">Asociación</span>
           </button>
           <button 
             onClick={() => setSelectedTool('AGREGACION')}
-            className={`flex items-center gap-3 px-4 py-2 text-sm transition-colors ${selectedTool === 'AGREGACION' ? 'bg-lila-light/30 text-lila-main border-r-2 border-lila-main' : 'text-gray-600 hover:bg-gray-50'}`}
+            title="Agregación"
+            className={`flex items-center justify-center lg:justify-start gap-3 px-0 lg:px-4 py-2 text-sm transition-colors ${selectedTool === 'AGREGACION' ? 'bg-lila-light/30 text-lila-main border-r-2 border-lila-main' : 'text-gray-600 hover:bg-gray-50'}`}
           >
-            <Diamond className="w-4 h-4" /> Agregación
+            <Diamond className="w-4 h-4 shrink-0" /> <span className="hidden lg:inline">Agregación</span>
           </button>
           <button 
             onClick={() => setSelectedTool('COMPOSICION')}
-            className={`flex items-center gap-3 px-4 py-2 text-sm transition-colors ${selectedTool === 'COMPOSICION' ? 'bg-lila-light/30 text-lila-main border-r-2 border-lila-main' : 'text-gray-600 hover:bg-gray-50'}`}
+            title="Composición"
+            className={`flex items-center justify-center lg:justify-start gap-3 px-0 lg:px-4 py-2 text-sm transition-colors ${selectedTool === 'COMPOSICION' ? 'bg-lila-light/30 text-lila-main border-r-2 border-lila-main' : 'text-gray-600 hover:bg-gray-50'}`}
           >
-            <Layers className="w-4 h-4" /> Composición
+            <Layers className="w-4 h-4 shrink-0" /> <span className="hidden lg:inline">Composición</span>
           </button>
           <button 
             onClick={() => setSelectedTool('HERENCIA')}
-            className={`flex items-center gap-3 px-4 py-2 text-sm transition-colors ${selectedTool === 'HERENCIA' ? 'bg-lila-light/30 text-lila-main border-r-2 border-lila-main' : 'text-gray-600 hover:bg-gray-50'}`}
+            title="Generalización"
+            className={`flex items-center justify-center lg:justify-start gap-3 px-0 lg:px-4 py-2 text-sm transition-colors ${selectedTool === 'HERENCIA' ? 'bg-lila-light/30 text-lila-main border-r-2 border-lila-main' : 'text-gray-600 hover:bg-gray-50'}`}
           >
-            <Triangle className="w-4 h-4" /> Generalización
+            <Triangle className="w-4 h-4 shrink-0" /> <span className="hidden lg:inline">Generalización</span>
           </button>
           <button 
             onClick={() => setSelectedTool('DEPENDENCIA')}
-            className={`flex items-center gap-3 px-4 py-2 text-sm transition-colors ${selectedTool === 'DEPENDENCIA' ? 'bg-lila-light/30 text-lila-main border-r-2 border-lila-main' : 'text-gray-600 hover:bg-gray-50'}`}
+            title="Dependencia"
+            className={`flex items-center justify-center lg:justify-start gap-3 px-0 lg:px-4 py-2 text-sm transition-colors ${selectedTool === 'DEPENDENCIA' ? 'bg-lila-light/30 text-lila-main border-r-2 border-lila-main' : 'text-gray-600 hover:bg-gray-50'}`}
           >
-            <MoveRight className="w-4 h-4" /> Dependencia
+            <MoveRight className="w-4 h-4 shrink-0" /> <span className="hidden lg:inline">Dependencia</span>
           </button>
         </aside>
 
         {/* LIENZO REACT FLOW */}
-        <main className="flex-1 relative bg-[#FAFAFC]">
+        <main className="flex-1 relative bg-[#FAFAFC] min-w-0 min-h-0">
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -442,7 +460,7 @@ export default function UMLEditor() {
         </main>
 
         {/* PANEL DERECHO */}
-        <aside className="w-80 bg-white/95 backdrop-blur-md border-l border-lila-light/50 shadow-[-4px_0_24px_rgba(139,92,246,0.03)] flex flex-col z-40 overflow-y-auto shrink-0">
+        <aside className="absolute inset-y-0 right-0 w-80 max-w-[calc(100%_-_3.5rem)] lg:static lg:max-w-none bg-white/95 backdrop-blur-md border-l border-lila-light/50 shadow-[-4px_0_24px_rgba(139,92,246,0.03)] flex flex-col z-40 overflow-hidden shrink-0">
           <div className="flex border-b border-lila-light/50 bg-gray-50/50">
             <button 
               className={`flex-1 py-4 text-xs font-bold tracking-wider uppercase transition-colors ${rightTab === 'inspector' ? 'text-lila-main border-b-2 border-lila-main bg-white' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'}`}
@@ -460,7 +478,7 @@ export default function UMLEditor() {
             </button>
           </div>
 
-          <div className="p-5">
+          <div className="p-5 overflow-y-auto flex-1 min-h-0">
             {rightTab === 'inspector' && (
               <>
                 {!selectedNode && !selectedEdge && (
@@ -499,7 +517,7 @@ export default function UMLEditor() {
                       }}
                       className="text-lila-main hover:text-pink-main text-xs font-bold flex items-center gap-1"
                     >
-                      <PlusSquare className="w-3 h-3" /> Add
+                      <PlusSquare className="w-3 h-3" /> Agregar
                     </button>
                   </div>
                   <div className="flex flex-col gap-2">
@@ -550,7 +568,7 @@ export default function UMLEditor() {
 
                 <div className="space-y-3">
                   <div className="flex justify-between items-center">
-                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">MÃ©todos</label>
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Métodos</label>
                     <button 
                       onClick={() => {
                         const arr = selectedNode.data.metodos as any[] || [];
@@ -558,7 +576,7 @@ export default function UMLEditor() {
                       }}
                       className="text-lila-main hover:text-pink-main text-xs font-bold flex items-center gap-1"
                     >
-                      <PlusSquare className="w-3 h-3" /> Add
+                      <PlusSquare className="w-3 h-3" /> Agregar
                     </button>
                   </div>
                   <div className="flex flex-col gap-2">
@@ -590,7 +608,7 @@ export default function UMLEditor() {
                           />
                         </div>
                         <div className="flex gap-2 justify-between mt-1 items-center">
-                          <span className="text-[10px] font-bold text-gray-500">ParÃ¡metros</span>
+                          <span className="text-[10px] font-bold text-gray-500">Parámetros</span>
                           <button onClick={() => {
                               const arr = [...(selectedNode.data.metodos as any[])];
                               arr[idx].parametros = [...(arr[idx].parametros||[]), {nombre:'p', tipo:'String'}];
@@ -661,7 +679,7 @@ export default function UMLEditor() {
             {selectedEdge && (
               <div className="space-y-6">
                  <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Tipo de RelaciÃ³n</label>
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Tipo de Relación</label>
                   <select 
                     className="w-full px-3 py-2 bg-bg-main border border-gray-200 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-lila-main"
                     value={selectedEdge.data?.tipo as string || 'ASOCIACION'}
@@ -716,19 +734,24 @@ export default function UMLEditor() {
               </>
             )}
 
-            {/* CONTENIDO COLABORACIÃN */}
+            {/* CONTENIDO COLABORACIÓN */}
             {rightTab === 'colaboracion' && (
               <div className="space-y-6">
                 <div>
                   <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Conectados ahora</h3>
                   <div className="space-y-2">
-                    {connectedUsers.length === 0 ? (
+                    {!presenceReceived ? (
+                      <div className="text-sm text-gray-400">Actualizando presencia...</div>
+                    ) : connectedUsers.length === 0 ? (
                       <div className="text-sm text-gray-400">Nadie está conectado.</div>
                     ) : (
                       connectedUsers.map(u => (
-                        <div key={u.id} className="flex items-center gap-2 text-sm text-gray-700">
-                          <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                          <span className="font-medium">{u.nombre}</span>
+                        <div key={u.id} className="flex items-start gap-2 text-sm text-gray-700">
+                          <div className="w-2 h-2 rounded-full bg-green-500 mt-1.5 shrink-0"></div>
+                          <div className="min-w-0">
+                            <div className="font-medium break-words">{u.nombre}</div>
+                            <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{u.rol}</div>
+                          </div>
                         </div>
                       ))
                     )}
@@ -765,18 +788,9 @@ export default function UMLEditor() {
                   <div className="space-y-3">
                     {historyEvents.slice(0, 5).map((ev: any, idx: number) => (
                          <div key={idx} className="text-[11px] text-gray-600 border-l-2 border-lila-light pl-2">
-                           <span className="font-bold text-gray-800">{ev.usuarioNombre}</span>
+                           <span className="font-bold text-gray-800">{ev.usuarioNombre || 'Usuario'}</span>
                            {" "}
-                           {ev.tipoEvento === 'NODE_CREATED' ? 'creó una clase' :
-                            ev.tipoEvento === 'NODE_MOVED' ? 'movió una clase' :
-                            ev.tipoEvento === 'NODE_UPDATED' ? 'actualizó una clase' :
-                            ev.tipoEvento === 'NODE_DELETED' ? 'eliminó una clase' :
-                            ev.tipoEvento === 'EDGE_CREATED' ? 'creó una relación' :
-                            ev.tipoEvento === 'EDGE_UPDATED' ? 'actualizó una relación' :
-                            ev.tipoEvento === 'EDGE_DELETED' ? 'eliminó una relación' :
-                            ev.tipoEvento === 'USER_JOINED' ? 'se conectó a la sesión' :
-                            ev.tipoEvento === 'USER_LEFT' ? 'salió de la sesión' :
-                            ev.tipoEvento}
+                           {getActivityDescription(ev.tipoEvento)}
                          </div>
                     ))}
                     {historyEvents.length === 0 && <div className="text-xs text-gray-400">Sin actividad reciente.</div>}
@@ -808,18 +822,9 @@ export default function UMLEditor() {
                 <tbody className="text-sm text-gray-700">
                   {historyEvents.map((ev: any, idx: number) => (
                     <tr key={idx} className="border-b hover:bg-gray-50">
-                      <td className="p-4 font-medium">{ev.usuarioNombre}</td>
+                      <td className="p-4 font-medium">{ev.usuarioNombre || 'Usuario'}</td>
                       <td className="p-4">
-                        {ev.tipoEvento === 'NODE_CREATED' ? 'CreÃ³ clase' :
-                         ev.tipoEvento === 'NODE_MOVED' ? 'MoviÃ³ clase' :
-                         ev.tipoEvento === 'NODE_UPDATED' ? 'ActualizÃ³ clase' :
-                         ev.tipoEvento === 'NODE_DELETED' ? 'EliminÃ³ clase' :
-                         ev.tipoEvento === 'EDGE_CREATED' ? 'CreÃ³ relación' :
-                         ev.tipoEvento === 'EDGE_UPDATED' ? 'ActualizÃ³ relación' :
-                         ev.tipoEvento === 'EDGE_DELETED' ? 'EliminÃ³ relación' :
-                         ev.tipoEvento === 'USER_JOINED' ? 'ConexiÃ³n' :
-                         ev.tipoEvento === 'USER_LEFT' ? 'Desconexión' :
-                         ev.tipoEvento}
+                        {capitalize(getActivityDescription(ev.tipoEvento))}
                       </td>
                       <td className="p-4 text-gray-500">
                          {ev.tipoEvento.startsWith('USER') ? '-' : (ev.elementoId || '-')}

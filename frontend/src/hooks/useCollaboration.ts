@@ -11,6 +11,7 @@ export function useCollaboration(diagramaId: string | undefined) {
   
   const clientRef = useRef<Client | null>(null);
   const [connectedUsers, setConnectedUsers] = useState<any[]>([]);
+  const [presenceReceived, setPresenceReceived] = useState(false);
   const [historyEvents, setHistoryEvents] = useState<any[]>([]);
   const [connectionStatus, setConnectionStatus] = useState<'Conectando...' | 'Sincronizado' | 'Reconectando...' | 'Sin conexión'>('Sin conexión');
 
@@ -30,12 +31,13 @@ export function useCollaboration(diagramaId: string | undefined) {
   const handleRemoteEvent = useCallback((event: any) => {
     if (event.tipoEvento === 'PRESENCE_UPDATE') {
       setConnectedUsers(Array.isArray(event.payload) ? event.payload : []);
+      setPresenceReceived(true);
       setConnectionStatus('Sincronizado');
       return;
     }
 
     if (event.tipoEvento === 'HISTORY_UPDATE') {
-      setHistoryEvents(event.payload || []);
+      setHistoryEvents(Array.isArray(event.payload) ? event.payload : []);
       return;
     }
 
@@ -44,38 +46,71 @@ export function useCollaboration(diagramaId: string | undefined) {
     }
 
     switch (event.tipoEvento) {
-      case 'NODE_CREATED':
-        setNodes([...nodesRef.current, event.payload]);
+      case 'NODE_CREATED': {
+        const nextNodes = [...nodesRef.current, event.payload];
+        nodesRef.current = nextNodes;
+        setNodes(nextNodes);
         break;
-      case 'NODE_MOVED':
-        setNodes(nodesRef.current.map(n => n.id === event.elementoId ? { ...n, position: event.payload } : n));
+      }
+      case 'NODE_MOVED': {
+        const nextNodes = nodesRef.current.map(n => n.id === event.elementoId ? { ...n, position: event.payload } : n);
+        nodesRef.current = nextNodes;
+        setNodes(nextNodes);
         break;
-      case 'NODE_UPDATED':
-        setNodes(nodesRef.current.map(n => n.id === event.elementoId ? { ...n, data: { ...n.data, ...event.payload } } : n));
+      }
+      case 'NODE_UPDATED': {
+        const nextNodes = nodesRef.current.map(n => n.id === event.elementoId ? { ...n, data: { ...n.data, ...event.payload } } : n);
+        nodesRef.current = nextNodes;
+        setNodes(nextNodes);
         break;
-      case 'NODE_DELETED':
-        setNodes(nodesRef.current.filter(n => n.id !== event.elementoId));
-        setEdges(edgesRef.current.filter(e => e.source !== event.elementoId && e.target !== event.elementoId));
+      }
+      case 'NODE_DELETED': {
+        const nextNodes = nodesRef.current.filter(n => n.id !== event.elementoId);
+        const nextEdges = edgesRef.current.filter(e => e.source !== event.elementoId && e.target !== event.elementoId);
+        nodesRef.current = nextNodes;
+        edgesRef.current = nextEdges;
+        setNodes(nextNodes);
+        setEdges(nextEdges);
         break;
-      case 'EDGE_CREATED':
-        setEdges([...edgesRef.current, event.payload]);
+      }
+      case 'EDGE_CREATED': {
+        const nextEdges = [...edgesRef.current, event.payload];
+        edgesRef.current = nextEdges;
+        setEdges(nextEdges);
         break;
-      case 'EDGE_UPDATED':
-        setEdges(edgesRef.current.map(e => e.id === event.elementoId ? { ...e, data: { ...e.data, ...event.payload } } : e));
+      }
+      case 'EDGE_UPDATED': {
+        const nextEdges = edgesRef.current.map(e => e.id === event.elementoId ? { ...e, data: { ...e.data, ...event.payload } } : e);
+        edgesRef.current = nextEdges;
+        setEdges(nextEdges);
         break;
-      case 'EDGE_DELETED':
-        setEdges(edgesRef.current.filter(e => e.id !== event.elementoId));
+      }
+      case 'EDGE_DELETED': {
+        const nextEdges = edgesRef.current.filter(e => e.id !== event.elementoId);
+        edgesRef.current = nextEdges;
+        setEdges(nextEdges);
         break;
-      case 'EDGE_INVERTED':
-        setEdges(edgesRef.current.map(e => e.id === event.elementoId ? { ...e, source: e.target, target: e.source, data: { ...e.data, ...event.payload } } : e));
+      }
+      case 'EDGE_INVERTED': {
+        const nextEdges = edgesRef.current.map(e => e.id === event.elementoId ? { ...e, source: e.target, target: e.source, data: { ...e.data, ...event.payload } } : e);
+        edgesRef.current = nextEdges;
+        setEdges(nextEdges);
         break;
+      }
     }
   }, [setNodes, setEdges]);
 
   useEffect(() => {
-    if (!diagramaId || !token || !user) return;
+    if (!diagramaId || !token || !user) {
+      setConnectedUsers([]);
+      setPresenceReceived(false);
+      setConnectionStatus('Sin conexión');
+      return;
+    }
 
     let isIntentionalDisconnect = false;
+    setConnectedUsers([]);
+    setPresenceReceived(false);
     setConnectionStatus('Conectando...');
 
     const client = new Client({
@@ -85,7 +120,14 @@ export function useCollaboration(diagramaId: string | undefined) {
       },
       reconnectDelay: 5000,
       onConnect: () => {
+        if (isIntentionalDisconnect) {
+          void client.deactivate();
+          return;
+        }
+
+        setPresenceReceived(false);
         client.subscribe(`/topic/diagramas/${diagramaId}`, (message) => {
+          if (isIntentionalDisconnect) return;
           const event = JSON.parse(message.body);
           handleRemoteEvent(event);
         });
@@ -94,22 +136,28 @@ export function useCollaboration(diagramaId: string | undefined) {
         client.publish({ destination: `/app/diagramas/${diagramaId}/presence`, body: JSON.stringify({}) });
       },
       onStompError: () => {
-        if (!isIntentionalDisconnect) setConnectionStatus('Sin conexión');
+        if (!isIntentionalDisconnect) {
+          setPresenceReceived(false);
+          setConnectionStatus('Sin conexión');
+        }
       },
       onWebSocketClose: () => {
-        if (!isIntentionalDisconnect) setConnectionStatus('Reconectando...');
+        if (!isIntentionalDisconnect) {
+          setPresenceReceived(false);
+          setConnectionStatus('Reconectando...');
+        }
       }
     });
 
-    client.activate();
     clientRef.current = client;
+    client.activate();
 
     return () => {
       isIntentionalDisconnect = true;
-      if (clientRef.current) {
-        clientRef.current.deactivate();
+      if (clientRef.current === client) {
         clientRef.current = null;
       }
+      void client.deactivate();
     };
   }, [diagramaId, token, user, handleRemoteEvent]);
 
@@ -125,6 +173,7 @@ export function useCollaboration(diagramaId: string | undefined) {
   return {
     historyEvents,
     connectedUsers,
+    presenceReceived,
     connectionStatus,
     broadcastEvent
   };
