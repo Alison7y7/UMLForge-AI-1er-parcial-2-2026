@@ -48,7 +48,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       edges: addEdge({
         ...connection,
         type: 'umlRelation',
-        data: { tipo: edgeType, multiplicidadOrigen: '1', multiplicidadDestino: '1' }
+        data: { tipo: edgeType || 'ASOCIACION', nombre: '', multiplicidadOrigen: '1', multiplicidadDestino: '0..*' }
       }, get().edges),
     });
   },

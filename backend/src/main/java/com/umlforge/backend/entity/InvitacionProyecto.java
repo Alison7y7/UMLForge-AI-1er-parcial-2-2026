@@ -36,7 +36,7 @@ public class InvitacionProyecto {
 
     private LocalDateTime fechaExpiracion; // opcional
 
-    // Getters and setters
+  
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     public Proyecto getProyecto() { return proyecto; }
@@ -53,10 +53,4 @@ public class InvitacionProyecto {
     public void setFechaCreacion(LocalDateTime fechaCreacion) { this.fechaCreacion = fechaCreacion; }
     public LocalDateTime getFechaExpiracion() { return fechaExpiracion; }
     public void setFechaExpiracion(LocalDateTime fechaExpiracion) { this.fechaExpiracion = fechaExpiracion; }
-}
-
-enum InvitacionEstado {
-    PENDIENTE,
-    ACEPTADA,
-    RECHAZADA
 }

@@ -41,6 +41,7 @@ public class SecurityConfig {
                 .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/auth/login", "/api/auth/register").permitAll()
                 .requestMatchers("/error").permitAll()
+                .requestMatchers("/ws-uml/**").permitAll()
                 .anyRequest().authenticated()
             )
             .sessionManagement(session -> session

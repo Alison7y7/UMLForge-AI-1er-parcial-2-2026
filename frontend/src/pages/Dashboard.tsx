@@ -21,6 +21,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   
   const [proyectos, setProyectos] = useState<Proyecto[]>([]);
+  const [invitaciones, setInvitaciones] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSidebarOpen, setSidebarOpen] = useState(false);
 
@@ -42,8 +43,18 @@ export default function Dashboard() {
     }
   };
 
+  const fetchInvitaciones = async () => {
+    try {
+      const { data } = await api.get('/invitaciones/mis-invitaciones');
+      setInvitaciones(data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   useEffect(() => {
     fetchProyectos();
+    fetchInvitaciones();
   }, []);
 
   const handleLogout = () => {
@@ -92,6 +103,27 @@ export default function Dashboard() {
     } catch (err) {
       console.error(err);
       alert('Error al cambiar el estado. ¿Tienes permisos?');
+    }
+  };
+
+  const handleAceptarInvitacion = async (token: string) => {
+    try {
+      await api.post(`/invitaciones/${token}/aceptar`);
+      fetchInvitaciones();
+      fetchProyectos();
+    } catch (err) {
+      console.error(err);
+      alert('Error al aceptar invitación');
+    }
+  };
+
+  const handleRechazarInvitacion = async (token: string) => {
+    try {
+      await api.post(`/invitaciones/${token}/rechazar`);
+      fetchInvitaciones();
+    } catch (err) {
+      console.error(err);
+      alert('Error al rechazar invitación');
     }
   };
 
@@ -204,6 +236,37 @@ export default function Dashboard() {
               </p>
             </div>
           </div>
+
+          {/* Invitaciones */}
+          {invitaciones.length > 0 && (
+            <div className="mb-12">
+              <h2 className="text-2xl font-bold text-text-dark tracking-tight mb-6">Invitaciones pendientes</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {invitaciones.map(inv => (
+                  <div key={inv.id} className="bg-white/80 backdrop-blur-md rounded-2xl border border-yellow-200 shadow-sm p-5 flex flex-col justify-between">
+                    <div>
+                      <p className="font-bold text-text-dark">{inv.anfitrionNombre} te invitó a colaborar</p>
+                      <p className="text-sm text-gray-500 mt-1">Revisa tu invitación para unirte al proyecto.</p>
+                    </div>
+                    <div className="flex gap-3 mt-4">
+                      <button 
+                        onClick={() => handleAceptarInvitacion(inv.token)}
+                        className="flex-1 px-4 py-2 bg-gradient-to-r from-lila-main to-pink-main text-white text-sm font-bold rounded-xl hover:opacity-90 transition-all shadow-md shadow-pink-main/20"
+                      >
+                        Aceptar
+                      </button>
+                      <button 
+                        onClick={() => handleRechazarInvitacion(inv.token)}
+                        className="flex-1 px-4 py-2 bg-gray-100 text-gray-600 text-sm font-bold rounded-xl hover:bg-gray-200 transition-all"
+                      >
+                        Rechazar
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Sección Mis Proyectos */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4">
