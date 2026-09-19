@@ -1,5 +1,5 @@
-﻿// @ts-nocheck
-import { useEffect, useRef, useState } from 'react';
+// @ts-nocheck
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { Client } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
 import { useAuthStore } from '../store/authStore';
@@ -9,14 +9,14 @@ export function useCollaboration(diagramaId: string | undefined) {
   const { token, user } = useAuthStore();
   const { nodes, edges, setNodes, setEdges } = useEditorStore();
   
-  const [stompClient, setStompClient] = useState<Client | null>(null);
+  const clientRef = useRef<Client | null>(null);
   const [connectedUsers, setConnectedUsers] = useState<any[]>([]);
   const [historyEvents, setHistoryEvents] = useState<any[]>([]);
-  const [lockedElements, setLockedElements] = useState<Record<string, string>>({}); // id -> userName
-  const [connectionStatus, setConnectionStatus] = useState<'Sincronizado' | 'Reconectando...' | 'Sin conexiÃƒÆ’Ã‚Â³n'>('Sin conexiÃƒÆ’Ã‚Â³n');
+  const [connectionStatus, setConnectionStatus] = useState<'Conectando...' | 'Sincronizado' | 'Reconectando...' | 'Sin conexión'>('Sin conexión');
 
   const nodesRef = useRef(nodes);
   const edgesRef = useRef(edges);
+  const userRef = useRef(user);
 
   useEffect(() => {
     nodesRef.current = nodes;
@@ -24,66 +24,26 @@ export function useCollaboration(diagramaId: string | undefined) {
   }, [nodes, edges]);
 
   useEffect(() => {
-    if (!diagramaId || !token || !user) return;
+    userRef.current = user;
+  }, [user]);
 
-    const client = new Client({
-      webSocketFactory: () => new SockJS('http://localhost:8080/ws-uml'),
-      connectHeaders: {
-        Authorization: `Bearer ${token}`
-      },
-      debug: (_str) => {
-        // console.log(str);
-      },
-      reconnectDelay: 5000,
-      onConnect: () => {
-        setConnectionStatus('Sincronizado');
-        
-        client.subscribe(`/topic/diagramas/${diagramaId}`, (message) => {
-          const event = JSON.parse(message.body);
-          handleRemoteEvent(event);
-        });
+  const handleRemoteEvent = useCallback((event: any) => {
+    if (event.tipoEvento === 'PRESENCE_UPDATE') {
+      setConnectedUsers(Array.isArray(event.payload) ? event.payload : []);
+      setConnectionStatus('Sincronizado');
+      return;
+    }
 
-        // Join
-        client.publish({ destination: `/app/diagramas/${diagramaId}/join`, body: JSON.stringify({}) });
-      },
-      onStompError: () => {
-        setConnectionStatus('Sin conexiÃƒÆ’Ã‚Â³n');
-      },
-      onWebSocketClose: () => {
-        setConnectionStatus('Reconectando...');
-      }
-    });
+    if (event.tipoEvento === 'HISTORY_UPDATE') {
+      setHistoryEvents(event.payload || []);
+      return;
+    }
 
-    client.activate();
-    setStompClient(client);
-
-    return () => {
-      client.deactivate();
-    };
-  }, [diagramaId, token]);
-
-  const handleRemoteEvent = (event: any) => {
-    if (event.usuarioId === user?.id && event.tipoEvento !== 'LOCK_ELEMENT' && event.tipoEvento !== 'UNLOCK_ELEMENT') {
-      return; // Ignore own non-lock events
+    if (event.usuarioId === userRef.current?.id) {
+      return;
     }
 
     switch (event.tipoEvento) {
-      case 'HISTORY_UPDATE':
-        setHistoryEvents(event.payload || []);
-        break;
-      case 'PRESENCE_UPDATE':
-        setConnectedUsers(event.payload || []);
-        break;
-      case 'LOCK_ELEMENT':
-        setLockedElements(prev => ({ ...prev, [event.elementoId]: event.usuarioNombre }));
-        break;
-      case 'UNLOCK_ELEMENT':
-        setLockedElements(prev => {
-          const next = { ...prev };
-          delete next[event.elementoId];
-          return next;
-        });
-        break;
       case 'NODE_CREATED':
         setNodes([...nodesRef.current, event.payload]);
         break;
@@ -91,7 +51,7 @@ export function useCollaboration(diagramaId: string | undefined) {
         setNodes(nodesRef.current.map(n => n.id === event.elementoId ? { ...n, position: event.payload } : n));
         break;
       case 'NODE_UPDATED':
-        setNodes(nodesRef.current.map(n => n.id === event.elementoId ? { ...n, data: event.payload } : n));
+        setNodes(nodesRef.current.map(n => n.id === event.elementoId ? { ...n, data: { ...n.data, ...event.payload } } : n));
         break;
       case 'NODE_DELETED':
         setNodes(nodesRef.current.filter(n => n.id !== event.elementoId));
@@ -101,56 +61,71 @@ export function useCollaboration(diagramaId: string | undefined) {
         setEdges([...edgesRef.current, event.payload]);
         break;
       case 'EDGE_UPDATED':
-        setEdges(edgesRef.current.map(e => e.id === event.elementoId ? { ...e, data: event.payload } : e));
+        setEdges(edgesRef.current.map(e => e.id === event.elementoId ? { ...e, data: { ...e.data, ...event.payload } } : e));
         break;
       case 'EDGE_DELETED':
         setEdges(edgesRef.current.filter(e => e.id !== event.elementoId));
         break;
       case 'EDGE_INVERTED':
-        setEdges(edgesRef.current.map(e => e.id === event.elementoId ? { ...e, source: e.target, target: e.source, data: event.payload } : e));
+        setEdges(edgesRef.current.map(e => e.id === event.elementoId ? { ...e, source: e.target, target: e.source, data: { ...e.data, ...event.payload } } : e));
         break;
     }
-  };
+  }, [setNodes, setEdges]);
 
-  const broadcastEvent = (tipoEvento: string, elementoId: string, payload: any = null) => {
-    if (stompClient && stompClient.connected) {
-      stompClient.publish({
+  useEffect(() => {
+    if (!diagramaId || !token || !user) return;
+
+    let isIntentionalDisconnect = false;
+    setConnectionStatus('Conectando...');
+
+    const client = new Client({
+      webSocketFactory: () => new SockJS('http://localhost:8080/ws-uml'),
+      connectHeaders: {
+        Authorization: `Bearer ${token}`
+      },
+      reconnectDelay: 5000,
+      onConnect: () => {
+        client.subscribe(`/topic/diagramas/${diagramaId}`, (message) => {
+          const event = JSON.parse(message.body);
+          handleRemoteEvent(event);
+        });
+
+        client.publish({ destination: `/app/diagramas/${diagramaId}/join`, body: JSON.stringify({}) });
+        client.publish({ destination: `/app/diagramas/${diagramaId}/presence`, body: JSON.stringify({}) });
+      },
+      onStompError: () => {
+        if (!isIntentionalDisconnect) setConnectionStatus('Sin conexión');
+      },
+      onWebSocketClose: () => {
+        if (!isIntentionalDisconnect) setConnectionStatus('Reconectando...');
+      }
+    });
+
+    client.activate();
+    clientRef.current = client;
+
+    return () => {
+      isIntentionalDisconnect = true;
+      if (clientRef.current) {
+        clientRef.current.deactivate();
+        clientRef.current = null;
+      }
+    };
+  }, [diagramaId, token, user, handleRemoteEvent]);
+
+  const broadcastEvent = useCallback((tipoEvento: string, elementoId: string, payload: any = null) => {
+    if (clientRef.current && clientRef.current.connected) {
+      clientRef.current.publish({
         destination: `/app/diagramas/${diagramaId}/event`,
         body: JSON.stringify({ tipoEvento, elementoId, payload })
       });
     }
-  };
-
-  const attemptLock = (elementoId: string) => {
-    if (stompClient && stompClient.connected) {
-      stompClient.publish({
-        destination: `/app/diagramas/${diagramaId}/lock`,
-        body: JSON.stringify({ tipoEvento: 'LOCK_ELEMENT', elementoId })
-      });
-    }
-  };
-
-  const releaseLock = (elementoId: string) => {
-    if (stompClient && stompClient.connected) {
-      stompClient.publish({
-        destination: `/app/diagramas/${diagramaId}/lock`,
-        body: JSON.stringify({ tipoEvento: 'UNLOCK_ELEMENT', elementoId })
-      });
-    }
-  };
+  }, [diagramaId]);
 
   return {
     historyEvents,
     connectedUsers,
-    lockedElements,
     connectionStatus,
-    broadcastEvent,
-    attemptLock,
-    releaseLock
+    broadcastEvent
   };
 }
-
-
-
-
-

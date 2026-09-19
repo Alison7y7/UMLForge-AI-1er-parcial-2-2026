@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../api/axios';
 import { useEditorStore } from '../store/editorStore';
@@ -31,8 +31,8 @@ export default function UMLEditor() {
   const { user } = useAuthStore();
   
   const {
-    historyEvents, connectedUsers, lockedElements, connectionStatus,
-    broadcastEvent, attemptLock, releaseLock
+    historyEvents, connectedUsers, connectionStatus,
+    broadcastEvent
   } = useCollaboration(id);
 
   const [rightTab, setRightTab] = useState<'inspector' | 'colaboracion'>('inspector');
@@ -50,10 +50,7 @@ export default function UMLEditor() {
   const [loading, setLoading] = useState(true);
   const [proyectoId, setProyectoId] = useState<number | null>(null);
 
-  useEffect(() => {
-    if (selectedNodeId) attemptLock(selectedNodeId);
-    return () => { if (selectedNodeId) releaseLock(selectedNodeId); };
-  }, [selectedNodeId, attemptLock, releaseLock]);
+
 
   const handleUpdateNodeData = (nid: string, data: any) => {
     updateNodeData(nid, data);
@@ -247,13 +244,13 @@ export default function UMLEditor() {
   const selectedNode = nodes.find(n => n.id === selectedNodeId);
   const selectedEdge = edges.find(e => e.id === selectedEdgeId);
 
-  const mappedNodes = useMemo(() => {
-    return nodes.map(n => ({
-      ...n,
-      draggable: lockedElements[n.id] && lockedElements[n.id] !== user?.nombre ? false : true,
-      data: { ...n.data, lockedBy: lockedElements[n.id] }
-    }));
-  }, [nodes, lockedElements, user?.nombre]);
+
+
+
+
+
+
+
 
   if (loading) {
     return (
@@ -381,7 +378,7 @@ export default function UMLEditor() {
         {/* LIENZO REACT FLOW */}
         <main className="flex-1 relative bg-[#FAFAFC]">
           <ReactFlow
-            nodes={mappedNodes}
+            nodes={nodes}
             edges={edges}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
@@ -392,18 +389,18 @@ export default function UMLEditor() {
               broadcastEvent('EDGE_CREATED', newEdge.id, newEdge);
             }}
             onNodeClick={(_, node) => {
-              if (lockedElements[node.id] && lockedElements[node.id] !== user?.nombre) {
-                alert(lockedElements[node.id] + ' está editando. Espera a que termine.');
-                return;
-              }
+
+
+
+
               setSelectedNodeId(node.id);
             }}
             onNodeDragStop={(e, node) => broadcastEvent('NODE_MOVED', node.id, node.position)}
             onEdgeClick={(_, edge) => {
-              if (lockedElements[edge.id] && lockedElements[edge.id] !== user?.nombre) {
-                alert(lockedElements[edge.id] + ' está editando. Espera a que termine.');
-                return;
-              }
+
+
+
+
               setSelectedEdgeId(edge.id);
             }}
             onPaneClick={(e) => {
@@ -737,28 +734,29 @@ export default function UMLEditor() {
                     )}
                   </div>
                 </div>
-                <div>
-                  <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Editando ahora</h3>
-                  <div className="space-y-2">
-                    {Object.keys(lockedElements).length === 0 ? (
-                      <div className="text-sm text-gray-400">Nadie está editando un elemento en este momento.</div>
-                    ) : (
-                      Object.entries(lockedElements).map(([elId, userName]) => {
-                        const classNode = nodes.find(n => n.id === elId);
-                        const relEdge = edges.find(e => e.id === elId);
-                        let elName = 'un elemento';
-                        if (classNode) elName = classNode.data.nombre as string || 'una clase';
-                        if (relEdge) elName = 'la relación ' + (relEdge.data?.nombre || '');
-                        return (
-                          <div key={elId} className="flex flex-col text-sm text-gray-700 bg-orange-50 p-2 rounded">
-                            <span className="font-medium">{userName}</span>
-                            <span className="text-xs text-gray-500">está editando {elName}</span>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 <div>
                   <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center justify-between">
                     Actividad reciente
