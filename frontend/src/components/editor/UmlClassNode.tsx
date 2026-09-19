@@ -18,12 +18,7 @@ const getVisibilitySymbol = (vis: string) => {
 
 export default function UmlClassNode({ data, selected }: Props) {
   return (
-    <div className={`bg-white w-[240px] shadow-sm overflow-hidden border border-gray-300 ${selected ? 'ring-2 ring-lila-main border-lila-main shadow-md' : 'hover:border-gray-400'} ${data.lockedBy ? 'ring-2 ring-orange-400 border-orange-400' : ''} transition-all relative`}>
-      {data.lockedBy && (
-        <div className="absolute top-0 right-0 bg-orange-400 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-bl-md">
-          {data.lockedBy} editando
-        </div>
-      )}
+    <div className={`bg-white w-[240px] shadow-sm overflow-hidden border border-gray-300 ${selected ? 'ring-2 ring-lila-main border-lila-main shadow-md' : 'hover:border-gray-400'} transition-all relative`}>
       <Handle type="target" position={Position.Top} className="w-full h-2 bg-transparent border-none rounded-none opacity-0" />
       <Handle type="target" position={Position.Left} className="w-2 h-full bg-transparent border-none rounded-none opacity-0" />
       
