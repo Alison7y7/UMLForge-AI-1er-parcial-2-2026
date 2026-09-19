@@ -1,0 +1,19 @@
+@import "tailwindcss";
+
+@theme {
+  --color-lila-main: #8B5CF6;
+  --color-lila-light: #EDE9FE;
+  --color-pink-main: #F9A8D4;
+  --color-pink-light: #FCE7F3;
+  --color-blue-pastel: #BAE6FD;
+  --color-bg-main: #FAFAFC;
+  --color-text-dark: #374151;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-bg-main);
+    color: var(--color-text-dark);
+    font-family: ui-sans-serif, system-ui, sans-serif;
+  }
+}
