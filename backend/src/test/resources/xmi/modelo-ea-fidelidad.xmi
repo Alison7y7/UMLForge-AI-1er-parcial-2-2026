@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xmi:XMI xmlns:xmi="http://schema.omg.org/spec/XMI/2.1"
+         xmlns:uml="http://schema.omg.org/spec/UML/2.1"
+         xmi:version="2.1">
+  <uml:Model xmi:id="MODEL_FIDELIDAD" name="ModeloFidelidad">
+    <!-- El orden XML es intencionalmente opuesto a la disposición del diagrama. -->
+    <packagedElement xmi:type="uml:Class" xmi:id="CLASS_CASA" name="Casa">
+      <ownedAttribute xmi:type="uml:Property" xmi:id="ATTR_CASA_DIRECCION" name="Direccion" visibility="private">
+        <type xmi:type="uml:PrimitiveType" href="http://www.sparxsystems.com/profiles/UML2.1/PrimitiveTypes.xmi#Long"/>
+        <lowerValue xmi:type="uml:LiteralInteger" value="0"/>
+        <upperValue xmi:type="uml:LiteralUnlimitedNatural" value="*"/>
+      </ownedAttribute>
+      <ownedAttribute xmi:type="uml:Property" xmi:id="ATTR_CASA_ID" name="ID" visibility="private">
+        <type xmi:type="uml:PrimitiveType" href="http://www.omg.org/spec/UML/2.1/PrimitiveTypes.xmi#String"/>
+      </ownedAttribute>
+    </packagedElement>
+
+    <packagedElement xmi:type="uml:Class" xmi:id="CLASS_PERSONA" name="Persona">
+      <ownedAttribute xmi:type="uml:Property" xmi:id="ATTR_PERSONA_ID" name="ID" visibility="private">
+        <type xmi:type="uml:PrimitiveType" href="http://www.sparxsystems.com/profiles/UML2.1/PrimitiveTypes.xmi#Long"/>
+        <lowerValue xmi:type="uml:LiteralInteger" value="0"/>
+        <upperValue xmi:type="uml:LiteralUnlimitedNatural" value="*"/>
+      </ownedAttribute>
+      <ownedAttribute xmi:type="uml:Property" xmi:id="ATTR_PERSONA_NOMBRE" name="Nombre" visibility="private">
+        <type xmi:type="uml:PrimitiveType" href="http://www.omg.org/spec/UML/2.1/PrimitiveTypes.xmi#String"/>
+      </ownedAttribute>
+    </packagedElement>
+
+    <packagedElement xmi:type="uml:Association" xmi:id="ASSOC_REALIZA" name="realiza" memberEnd="END_CASA END_PERSONA">
+      <ownedEnd xmi:type="uml:Property" xmi:id="END_CASA" type="CLASS_CASA" association="ASSOC_REALIZA">
+        <lowerValue xmi:type="uml:LiteralInteger" value="0"/>
+        <upperValue xmi:type="uml:LiteralUnlimitedNatural" value="*"/>
+      </ownedEnd>
+      <ownedEnd xmi:type="uml:Property" xmi:id="END_PERSONA" type="CLASS_PERSONA" association="ASSOC_REALIZA">
+        <lowerValue xmi:type="uml:LiteralInteger" value="0"/>
+        <upperValue xmi:type="uml:LiteralUnlimitedNatural" value="*"/>
+      </ownedEnd>
+    </packagedElement>
+  </uml:Model>
+
+  <xmi:Extension extender="Enterprise Architect">
+    <connectors>
+      <connector xmi:idref="ASSOC_REALIZA">
+        <source xmi:idref="CLASS_PERSONA"/>
+        <target xmi:idref="CLASS_CASA"/>
+        <labels mt="realiza"/>
+      </connector>
+    </connectors>
+    <diagrams>
+      <diagram xmi:id="DIAGRAM_1">
+        <elements>
+          <element subject="CLASS_CASA" geometry="Left=460;Top=80;Right=700;Bottom=220;"/>
+          <element subject="CLASS_PERSONA" geometry="Left=60;Top=80;Right=300;Bottom=220;"/>
+        </elements>
+      </diagram>
+    </diagrams>
+  </xmi:Extension>
+</xmi:XMI>

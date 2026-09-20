@@ -25,6 +25,15 @@ export default function UmlRelationEdge({
   const nombre = data?.nombre as string;
   const multiplicidadOrigen = data?.multiplicidadOrigen as string;
   const multiplicidadDestino = data?.multiplicidadDestino as string;
+  const typeLabels: Record<string, string> = {
+    ASOCIACION: 'Asociación',
+    AGREGACION: 'Agregación',
+    COMPOSICION: 'Composición',
+    HERENCIA: 'Generalización',
+    GENERALIZACION: 'Generalización',
+    DEPENDENCIA: 'Dependencia',
+  };
+  const visibleLabel = nombre || typeLabels[tipo] || 'Relación';
 
   let customStyle = { ...style, strokeWidth: 2, stroke: '#8B5CF6' };
   let markerEnd = '';
@@ -36,6 +45,7 @@ export default function UmlRelationEdge({
     case 'COMPOSICION':
       markerEnd = 'url(#composicion-marker)';
       break;
+    case 'HERENCIA':
     case 'GENERALIZACION':
       markerEnd = 'url(#generalizacion-marker)';
       break;
@@ -61,9 +71,8 @@ export default function UmlRelationEdge({
           }}
           className="nodrag nopan"
         >
-          <div className="bg-white/80 backdrop-blur-sm px-2 py-0.5 rounded text-[10px] font-bold text-lila-main border border-lila-light/50 shadow-sm cursor-pointer hover:bg-lila-light/50 transition-colors flex flex-col items-center">
-            <span className="text-[8px] opacity-70 uppercase tracking-widest">{tipo}</span>
-            {nombre && <span>{nombre}</span>}
+          <div className="bg-white/80 backdrop-blur-sm px-2 py-0.5 rounded text-[10px] font-bold text-lila-main border border-lila-light/50 shadow-sm cursor-pointer hover:bg-lila-light/50 transition-colors">
+            <span>{visibleLabel}</span>
           </div>
         </div>
         

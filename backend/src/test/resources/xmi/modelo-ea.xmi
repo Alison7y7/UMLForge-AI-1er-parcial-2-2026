@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xmi:XMI xmlns:xmi="http://www.omg.org/spec/XMI/20131001"
+         xmlns:uml="http://www.omg.org/spec/UML/20131001"
+         xmi:version="2.1">
+  <uml:Model xmi:id="MODEL_1" name="ModeloCasa">
+    <packagedElement xmi:type="uml:PrimitiveType" xmi:id="PT_LONG" name="Long"/>
+    <packagedElement xmi:type="uml:PrimitiveType" xmi:id="PT_STRING" name="String"/>
+    <packagedElement xmi:type="uml:PrimitiveType" xmi:id="PT_VOID" name="void"/>
+
+    <packagedElement xmi:type="uml:Class" xmi:id="CLASS_PERSONA" name="Persona">
+      <ownedAttribute xmi:type="uml:Property" xmi:id="ATTR_PERSONA_ID" name="id" visibility="private" type="PT_LONG"/>
+      <ownedAttribute xmi:type="uml:Property" xmi:id="ATTR_PERSONA_NOMBRE" name="nombre" visibility="private">
+        <type xmi:type="uml:PrimitiveType" href="http://www.omg.org/spec/UML/20131001/PrimitiveTypes.xmi#String"/>
+      </ownedAttribute>
+      <ownedOperation xmi:type="uml:Operation" xmi:id="OP_REGISTRAR" name="registrar" visibility="public">
+        <ownedParameter xmi:type="uml:Parameter" xmi:id="PARAM_CASA" name="casa" direction="in" type="CLASS_CASA"/>
+        <ownedParameter xmi:type="uml:Parameter" xmi:id="PARAM_RETURN" direction="return" type="PT_VOID"/>
+      </ownedOperation>
+    </packagedElement>
+
+    <packagedElement xmi:type="uml:Class" xmi:id="CLASS_CASA" name="Casa">
+      <ownedAttribute xmi:type="uml:Property" xmi:id="ATTR_CASA_ID" name="id" visibility="private" type="PT_LONG"/>
+      <ownedAttribute xmi:type="uml:Property" xmi:id="ATTR_CASA_DIRECCION" name="direccion" visibility="protected" type="PT_STRING"/>
+    </packagedElement>
+
+    <packagedElement xmi:type="uml:Class" xmi:id="CLASS_CLIENTE" name="Cliente">
+      <generalization xmi:type="uml:Generalization" xmi:id="GEN_CLIENTE_PERSONA" general="CLASS_PERSONA"/>
+    </packagedElement>
+
+    <packagedElement xmi:type="uml:Association" xmi:id="ASSOC_PERSONA_CASA" name="habita" memberEnd="END_PERSONA END_CASA">
+      <ownedEnd xmi:type="uml:Property" xmi:id="END_PERSONA" type="CLASS_PERSONA" association="ASSOC_PERSONA_CASA">
+        <lowerValue xmi:type="uml:LiteralInteger" value="1"/>
+        <upperValue xmi:type="uml:LiteralUnlimitedNatural" value="1"/>
+      </ownedEnd>
+      <ownedEnd xmi:type="uml:Property" xmi:id="END_CASA" type="CLASS_CASA" association="ASSOC_PERSONA_CASA">
+        <lowerValue xmi:type="uml:LiteralInteger" value="0"/>
+        <upperValue xmi:type="uml:LiteralUnlimitedNatural" value="*"/>
+      </ownedEnd>
+    </packagedElement>
+
+    <packagedElement xmi:type="uml:Association" xmi:id="COMP_PERSONA_CASA" name="propiedad" memberEnd="END_TODO END_PARTE">
+      <ownedEnd xmi:type="uml:Property" xmi:id="END_TODO" type="CLASS_PERSONA" association="COMP_PERSONA_CASA" aggregation="composite">
+        <lowerValue xmi:type="uml:LiteralInteger" value="1"/>
+        <upperValue xmi:type="uml:LiteralUnlimitedNatural" value="1"/>
+      </ownedEnd>
+      <ownedEnd xmi:type="uml:Property" xmi:id="END_PARTE" type="CLASS_CASA" association="COMP_PERSONA_CASA">
+        <lowerValue xmi:type="uml:LiteralInteger" value="1"/>
+        <upperValue xmi:type="uml:LiteralUnlimitedNatural" value="1"/>
+      </ownedEnd>
+    </packagedElement>
+  </uml:Model>
+
+  <xmi:Extension extender="Enterprise Architect">
+    <elements>
+      <element subject="CLASS_PERSONA" geometry="Left=40;Top=30;Right=200;Bottom=150;">
+        <properties stereotype="entity"/>
+      </element>
+      <element subject="CLASS_CASA" geometry="Left=380;Top=30;Right=540;Bottom=150;"/>
+      <element subject="CLASS_CLIENTE" geometry="Left=40;Top=280;Right=200;Bottom=400;"/>
+    </elements>
+  </xmi:Extension>
+</xmi:XMI>

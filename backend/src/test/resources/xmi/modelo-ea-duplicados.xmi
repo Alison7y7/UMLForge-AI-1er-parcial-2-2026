@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xmi:XMI xmlns:xmi="http://schema.omg.org/spec/XMI/2.1"
+         xmlns:uml="http://schema.omg.org/spec/UML/2.1"
+         xmi:version="2.1">
+  <uml:Model xmi:id="MODEL_VEHICULO" name="ModeloVehiculo">
+    <packagedElement xmi:type="uml:PrimitiveType" xmi:id="TYPE_INT" name="int"/>
+
+    <packagedElement xmi:type="uml:Class" xmi:id="CLASS_VEHICULO" name="vehiculo">
+      <ownedAttribute xmi:type="uml:Property" xmi:id="VEHICULO_ID" name="id" type="TYPE_INT"/>
+      <ownedAttribute xmi:type="uml:Property" xmi:id="VEHICULO_NOMBRE" name="nombre" type="TYPE_INT"/>
+      <ownedAttribute xmi:type="uml:Property" xmi:id="VEHICULO_PLACA" name="placa" type="TYPE_INT"/>
+    </packagedElement>
+
+    <packagedElement xmi:type="uml:Class" xmi:id="CLASS_DIRECCION" name="Direccion">
+      <ownedAttribute xmi:type="uml:Property" xmi:id="DIRECCION_ID" name="id" type="TYPE_INT"/>
+      <ownedAttribute xmi:type="uml:Property" xmi:id="DIRECCION_LUGAR" name="lugar" type="TYPE_INT"/>
+      <ownedAttribute xmi:type="uml:Property" xmi:id="DIRECCION_TELEFONO" name="telefono" type="TYPE_INT"/>
+    </packagedElement>
+
+    <packagedElement xmi:type="uml:Association" xmi:id="ASSOC_TOTAL" name="total" memberEnd="END_VEHICULO END_DIRECCION">
+      <ownedEnd xmi:type="uml:Property" xmi:id="END_VEHICULO" type="CLASS_VEHICULO" association="ASSOC_TOTAL"/>
+      <ownedEnd xmi:type="uml:Property" xmi:id="END_DIRECCION" type="CLASS_DIRECCION" association="ASSOC_TOTAL"/>
+    </packagedElement>
+  </uml:Model>
+
+  <xmi:Extension extender="Enterprise Architect">
+    <elements>
+      <element xmi:type="uml:Class" xmi:idref="CLASS_VEHICULO" name="vehiculo"
+               subject="CLASS_VEHICULO" geometry="Left=40;Top=80;Right=280;Bottom=240;"/>
+      <element xmi:type="uml:Class" xmi:idref="CLASS_DIRECCION" name="Direccion"
+               subject="CLASS_DIRECCION" geometry="Left=480;Top=80;Right=720;Bottom=240;"/>
+    </elements>
+    <connectors>
+      <connector xmi:type="uml:Association" xmi:idref="ASSOC_TOTAL">
+        <source xmi:idref="CLASS_VEHICULO"/>
+        <target xmi:idref="CLASS_DIRECCION"/>
+        <labels mt="total"/>
+      </connector>
+    </connectors>
+  </xmi:Extension>
+</xmi:XMI>

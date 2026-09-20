@@ -18,6 +18,7 @@ import '@xyflow/react/dist/style.css';
 
 import UmlClassNode from '../components/editor/UmlClassNode';
 import UmlRelationEdge from '../components/editor/UmlRelationEdge';
+import XmiImportModal from '../components/xmi/XmiImportModal';
 import type { UmlModelJson } from '../types/uml';
 import { useCollaboration } from '../hooks/useCollaboration';
 
@@ -64,6 +65,7 @@ export default function UMLEditor() {
 
   const [rightTab, setRightTab] = useState<'inspector' | 'colaboracion'>('inspector');
   const [showHistory, setShowHistory] = useState(false);
+  const [showXmiImport, setShowXmiImport] = useState(false);
   const [selectedTool, setSelectedTool] = useState('select');
   
   const {
@@ -220,6 +222,45 @@ export default function UMLEditor() {
     }
   };
 
+  const handleImportXmi = (model: UmlModelJson) => {
+    const importedNodes: Node[] = model.clases.map(umlClass => ({
+      id: umlClass.id.toString(),
+      type: 'umlClass',
+      position: { x: umlClass.posicionX, y: umlClass.posicionY },
+      data: {
+        nombre: umlClass.nombre,
+        estereotipo: umlClass.estereotipo || '',
+        atributos: umlClass.atributos || [],
+        metodos: umlClass.metodos || []
+      }
+    }));
+    const importedEdges: Edge[] = model.relaciones.map(relation => ({
+      id: relation.id.toString(),
+      source: relation.origen.toString(),
+      target: relation.destino.toString(),
+      type: 'umlRelation',
+      data: {
+        tipo: relation.tipo,
+        nombre: relation.nombre || '',
+        multiplicidadOrigen: relation.multiplicidadOrigen || '',
+        multiplicidadDestino: relation.multiplicidadDestino || ''
+      },
+      markerEnd: getMarkerEnd(relation.tipo)
+    }));
+
+    edges.forEach(edge => broadcastEvent('EDGE_DELETED', edge.id));
+    nodes.forEach(node => broadcastEvent('NODE_DELETED', node.id));
+    importedNodes.forEach(node => broadcastEvent('NODE_CREATED', node.id, node));
+    importedEdges.forEach(edge => broadcastEvent('EDGE_CREATED', edge.id, edge));
+
+    setNodes(importedNodes);
+    setEdges(importedEdges);
+    setSelectedNodeId(null);
+    setSelectedEdgeId(null);
+    setShowXmiImport(false);
+    alert('Modelo XMI importado. Recuerda guardar los cambios.');
+  };
+
   const handleAddClass = () => {
     const newNode: Node = {
       id: generateId(),
@@ -319,7 +360,7 @@ export default function UMLEditor() {
             <button onClick={() => setShowHistory(true)} className="px-3 py-1.5 text-xs font-bold text-lila-main bg-lila-light/10 hover:bg-lila-light/20 rounded-lg transition-colors">Actividad</button>
             <button className="px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded transition-colors">Asistente IA</button>
             <button className="px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded transition-colors">Imagen</button>
-            <button className="px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded transition-colors">Importar XMI</button>
+            <button onClick={() => setShowXmiImport(true)} className="px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded transition-colors">Importar XMI</button>
             <button className="px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded transition-colors">Exportar XMI</button>
             <button className="px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded transition-colors">Generar backend</button>
             
@@ -839,6 +880,14 @@ export default function UMLEditor() {
             </div>
           </div>
         </div>
+      )}
+
+      {showXmiImport && (
+        <XmiImportModal
+          hasExistingContent={nodes.length > 0 || edges.length > 0}
+          onClose={() => setShowXmiImport(false)}
+          onImport={handleImportXmi}
+        />
       )}
     </div>
   );
