@@ -19,11 +19,22 @@ import '@xyflow/react/dist/style.css';
 import UmlClassNode from '../components/editor/UmlClassNode';
 import UmlRelationEdge from '../components/editor/UmlRelationEdge';
 import XmiImportModal from '../components/xmi/XmiImportModal';
+import XmiExportModal from '../components/xmi/XmiExportModal';
 import type { UmlModelJson } from '../types/uml';
 import { useCollaboration } from '../hooks/useCollaboration';
 
 const nodeTypes = { umlClass: UmlClassNode };
 const edgeTypes = { umlRelation: UmlRelationEdge };
+
+const relationToolLabels: Record<string, string> = {
+  ASOCIACION: 'Asociación',
+  AGREGACION: 'Agregación',
+  COMPOSICION: 'Composición',
+  HERENCIA: 'Generalización',
+  DEPENDENCIA: 'Dependencia'
+};
+
+const isRelationTool = (tool: string) => Boolean(relationToolLabels[tool]);
 
 const activityDescriptions: Record<string, string> = {
   NODE_CREATED: 'creó una clase',
@@ -66,7 +77,10 @@ export default function UMLEditor() {
   const [rightTab, setRightTab] = useState<'inspector' | 'colaboracion'>('inspector');
   const [showHistory, setShowHistory] = useState(false);
   const [showXmiImport, setShowXmiImport] = useState(false);
+  const [showXmiExport, setShowXmiExport] = useState(false);
   const [selectedTool, setSelectedTool] = useState('select');
+  const [pendingRelationSourceId, setPendingRelationSourceId] = useState<string | null>(null);
+  const [relationError, setRelationError] = useState('');
   
   const {
     nodes, edges, selectedNodeId, selectedEdgeId,
@@ -145,28 +159,30 @@ export default function UMLEditor() {
     fetchDiagrama();
   }, [id, setNodes, setEdges]);
 
+  const buildCurrentModel = (): UmlModelJson => ({
+    clases: nodes.map(n => ({
+      id: n.id,
+      nombre: n.data.nombre as string,
+      estereotipo: n.data.estereotipo as string | undefined,
+      posicionX: n.position.x,
+      posicionY: n.position.y,
+      atributos: n.data.atributos as any[] || [],
+      metodos: n.data.metodos as any[] || []
+    })),
+    relaciones: edges.map(e => ({
+      id: e.id,
+      origen: e.source,
+      destino: e.target,
+      tipo: e.data?.tipo as string || 'ASOCIACION',
+      nombre: e.data?.nombre as string || '',
+      multiplicidadOrigen: e.data?.multiplicidadOrigen as string || '',
+      multiplicidadDestino: e.data?.multiplicidadDestino as string || ''
+    }))
+  });
+
   const handleSave = async () => {
     try {
-      const modelo: UmlModelJson = {
-        clases: nodes.map(n => ({
-          id: n.id,
-          nombre: n.data.nombre as string,
-          estereotipo: n.data.estereotipo as string | undefined,
-          posicionX: n.position.x,
-          posicionY: n.position.y,
-          atributos: n.data.atributos as any[] || [],
-          metodos: n.data.metodos as any[] || []
-        })),
-        relaciones: edges.map(e => ({
-          id: e.id,
-          origen: e.source,
-          destino: e.target,
-          tipo: e.data?.tipo as string || 'ASOCIACION',
-          nombre: e.data?.nombre as string || '',
-          multiplicidadOrigen: e.data?.multiplicidadOrigen as string || '',
-          multiplicidadDestino: e.data?.multiplicidadDestino as string || ''
-        }))
-      };
+      const modelo = buildCurrentModel();
 
       await api.put(`/diagramas/${id}`, {
         nombre: nombreDiagrama,
@@ -203,6 +219,8 @@ export default function UMLEditor() {
       if (e.key === 'Escape') {
         setSelectedNodeId(null);
         setSelectedEdgeId(null);
+        setPendingRelationSourceId(null);
+        setRelationError('');
       }
     };
 
@@ -220,6 +238,54 @@ export default function UMLEditor() {
       case 'DEPENDENCIA': return { type: MarkerType.ArrowClosed, color: '#8B5CF6' };
       default: return '';
     }
+  };
+
+  const handleToolChange = (tool: string) => {
+    setSelectedTool(tool);
+    setPendingRelationSourceId(null);
+    setRelationError('');
+  };
+
+  const handleNodeClick = (node: Node) => {
+    if (!isRelationTool(selectedTool)) {
+      setSelectedNodeId(node.id);
+      return;
+    }
+
+    if (!pendingRelationSourceId) {
+      setPendingRelationSourceId(node.id);
+      setRelationError('');
+      setSelectedNodeId(node.id);
+      return;
+    }
+
+    if (pendingRelationSourceId === node.id) {
+      setRelationError('No puedes relacionar una clase consigo misma.');
+      return;
+    }
+
+    const newEdge: Edge = {
+      id: generateId(),
+      source: pendingRelationSourceId,
+      target: node.id,
+      type: 'umlRelation',
+      data: {
+        tipo: selectedTool,
+        nombre: '',
+        multiplicidadOrigen: '',
+        multiplicidadDestino: ''
+      },
+      markerEnd: getMarkerEnd(selectedTool)
+    };
+
+    setEdges([...edges, newEdge]);
+    broadcastEvent('EDGE_CREATED', newEdge.id, newEdge);
+    setPendingRelationSourceId(null);
+    setRelationError('');
+    setSelectedEdgeId(newEdge.id);
+    setSelectedNodeId(null);
+    setRightTab('inspector');
+    setSelectedTool('select');
   };
 
   const handleImportXmi = (model: UmlModelJson) => {
@@ -294,6 +360,7 @@ export default function UMLEditor() {
 
   const selectedNode = nodes.find(n => n.id === selectedNodeId);
   const selectedEdge = edges.find(e => e.id === selectedEdgeId);
+  const pendingRelationSource = nodes.find(n => n.id === pendingRelationSourceId);
 
 
 
@@ -361,7 +428,7 @@ export default function UMLEditor() {
             <button className="px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded transition-colors">Asistente IA</button>
             <button className="px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded transition-colors">Imagen</button>
             <button onClick={() => setShowXmiImport(true)} className="px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded transition-colors">Importar XMI</button>
-            <button className="px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded transition-colors">Exportar XMI</button>
+            <button onClick={() => setShowXmiExport(true)} className="px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded transition-colors">Exportar XMI</button>
             <button className="px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded transition-colors">Generar backend</button>
             
             <button 
@@ -382,14 +449,14 @@ export default function UMLEditor() {
         <aside className="w-14 lg:w-48 bg-white/95 backdrop-blur-md border-r border-lila-light/50 flex flex-col py-4 z-40 shadow-[4px_0_24px_rgba(139,92,246,0.03)] overflow-y-auto shrink-0">
           <div className="hidden lg:block px-4 mb-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Herramientas</div>
           <button 
-            onClick={() => setSelectedTool('select')}
+            onClick={() => handleToolChange('select')}
             title="Seleccionar"
             className={`flex items-center justify-center lg:justify-start gap-3 px-0 lg:px-4 py-2 text-sm transition-colors ${selectedTool === 'select' ? 'bg-lila-light/30 text-lila-main border-r-2 border-lila-main' : 'text-gray-600 hover:bg-gray-50'}`}
           >
             <MousePointer2 className="w-4 h-4 shrink-0" /> <span className="hidden lg:inline">Seleccionar</span>
           </button>
           <button 
-            onClick={() => setSelectedTool('umlClass')}
+            onClick={() => handleToolChange('umlClass')}
             title="Clase"
             className={`flex items-center justify-center lg:justify-start gap-3 px-0 lg:px-4 py-2 text-sm transition-colors ${selectedTool === 'umlClass' ? 'bg-lila-light/30 text-lila-main border-r-2 border-lila-main' : 'text-gray-600 hover:bg-gray-50'}`}
           >
@@ -398,35 +465,35 @@ export default function UMLEditor() {
 
           <div className="hidden lg:block px-4 mt-6 mb-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Relaciones</div>
           <button 
-            onClick={() => setSelectedTool('ASOCIACION')}
+            onClick={() => handleToolChange('ASOCIACION')}
             title="Asociación"
             className={`flex items-center justify-center lg:justify-start gap-3 px-0 lg:px-4 py-2 text-sm transition-colors ${selectedTool === 'ASOCIACION' ? 'bg-lila-light/30 text-lila-main border-r-2 border-lila-main' : 'text-gray-600 hover:bg-gray-50'}`}
           >
             <ArrowRight className="w-4 h-4 shrink-0" /> <span className="hidden lg:inline">Asociación</span>
           </button>
           <button 
-            onClick={() => setSelectedTool('AGREGACION')}
+            onClick={() => handleToolChange('AGREGACION')}
             title="Agregación"
             className={`flex items-center justify-center lg:justify-start gap-3 px-0 lg:px-4 py-2 text-sm transition-colors ${selectedTool === 'AGREGACION' ? 'bg-lila-light/30 text-lila-main border-r-2 border-lila-main' : 'text-gray-600 hover:bg-gray-50'}`}
           >
             <Diamond className="w-4 h-4 shrink-0" /> <span className="hidden lg:inline">Agregación</span>
           </button>
           <button 
-            onClick={() => setSelectedTool('COMPOSICION')}
+            onClick={() => handleToolChange('COMPOSICION')}
             title="Composición"
             className={`flex items-center justify-center lg:justify-start gap-3 px-0 lg:px-4 py-2 text-sm transition-colors ${selectedTool === 'COMPOSICION' ? 'bg-lila-light/30 text-lila-main border-r-2 border-lila-main' : 'text-gray-600 hover:bg-gray-50'}`}
           >
             <Layers className="w-4 h-4 shrink-0" /> <span className="hidden lg:inline">Composición</span>
           </button>
           <button 
-            onClick={() => setSelectedTool('HERENCIA')}
+            onClick={() => handleToolChange('HERENCIA')}
             title="Generalización"
             className={`flex items-center justify-center lg:justify-start gap-3 px-0 lg:px-4 py-2 text-sm transition-colors ${selectedTool === 'HERENCIA' ? 'bg-lila-light/30 text-lila-main border-r-2 border-lila-main' : 'text-gray-600 hover:bg-gray-50'}`}
           >
             <Triangle className="w-4 h-4 shrink-0" /> <span className="hidden lg:inline">Generalización</span>
           </button>
           <button 
-            onClick={() => setSelectedTool('DEPENDENCIA')}
+            onClick={() => handleToolChange('DEPENDENCIA')}
             title="Dependencia"
             className={`flex items-center justify-center lg:justify-start gap-3 px-0 lg:px-4 py-2 text-sm transition-colors ${selectedTool === 'DEPENDENCIA' ? 'bg-lila-light/30 text-lila-main border-r-2 border-lila-main' : 'text-gray-600 hover:bg-gray-50'}`}
           >
@@ -437,7 +504,9 @@ export default function UMLEditor() {
         {/* LIENZO REACT FLOW */}
         <main className="flex-1 relative bg-[#FAFAFC] min-w-0 min-h-0">
           <ReactFlow
-            nodes={nodes}
+            nodes={pendingRelationSourceId
+              ? nodes.map(node => node.id === pendingRelationSourceId ? { ...node, selected: true } : node)
+              : nodes}
             edges={edges}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
@@ -447,13 +516,7 @@ export default function UMLEditor() {
               setEdges([...edges, newEdge as any]);
               broadcastEvent('EDGE_CREATED', newEdge.id, newEdge);
             }}
-            onNodeClick={(_, node) => {
-
-
-
-
-              setSelectedNodeId(node.id);
-            }}
+            onNodeClick={(_, node) => handleNodeClick(node)}
             onNodeDragStop={(e, node) => broadcastEvent('NODE_MOVED', node.id, node.position)}
             onEdgeClick={(_, edge) => {
 
@@ -498,6 +561,14 @@ export default function UMLEditor() {
             <Controls className="fill-lila-main" />
             <MiniMap nodeColor="#FCE7F3" maskColor="rgba(250, 250, 252, 0.7)" />
           </ReactFlow>
+          {pendingRelationSource && isRelationTool(selectedTool) && (
+            <div className="pointer-events-none absolute left-4 top-4 z-20 max-w-xs border border-lila-main/30 bg-white/95 px-3 py-2 shadow-md">
+              <p className="text-xs font-bold text-lila-main">{relationToolLabels[selectedTool]}</p>
+              <p className="mt-1 text-xs font-semibold text-gray-700">Origen: {pendingRelationSource.data.nombre as string}</p>
+              <p className="text-xs text-gray-500">Selecciona la clase destino</p>
+              {relationError && <p className="mt-1 text-xs font-semibold text-red-600">{relationError}</p>}
+            </div>
+          )}
         </main>
 
         {/* PANEL DERECHO */}
@@ -887,6 +958,14 @@ export default function UMLEditor() {
           hasExistingContent={nodes.length > 0 || edges.length > 0}
           onClose={() => setShowXmiImport(false)}
           onImport={handleImportXmi}
+        />
+      )}
+
+      {showXmiExport && (
+        <XmiExportModal
+          diagramName={nombreDiagrama}
+          model={buildCurrentModel()}
+          onClose={() => setShowXmiExport(false)}
         />
       )}
     </div>

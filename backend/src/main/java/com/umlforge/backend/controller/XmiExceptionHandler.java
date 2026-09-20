@@ -1,6 +1,7 @@
 package com.umlforge.backend.controller;
 
 import com.umlforge.backend.exception.XmiImportException;
+import com.umlforge.backend.exception.XmiExportException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -11,6 +12,13 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class XmiExceptionHandler {
+
+    @ExceptionHandler(XmiExportException.class)
+    public ResponseEntity<Map<String, String>> handleXmiExport(XmiExportException exception) {
+        return ResponseEntity
+            .status(exception.getStatus())
+            .body(Map.of("message", exception.getMessage()));
+    }
 
     @ExceptionHandler(XmiImportException.class)
     public ResponseEntity<Map<String, String>> handleXmiImport(XmiImportException exception) {
