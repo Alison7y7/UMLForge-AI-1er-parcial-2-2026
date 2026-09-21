@@ -194,6 +194,71 @@ export default function UMLEditor() {
       alert('Error guardando diagrama. Verifica tu conexión.');
     }
   };
+  const [showGenerateBackendModal, setShowGenerateBackendModal] = useState(false);
+  const [showGenerateMobileModal, setShowGenerateMobileModal] = useState(false);
+  const [isGeneratingBackend, setIsGeneratingBackend] = useState(false);
+  const [isGeneratingMobile, setIsGeneratingMobile] = useState(false);
+
+  const handleGenerateBackend = async (dbConfig: any) => {
+    try {
+      setIsGeneratingBackend(true);
+      const modelo = buildCurrentModel();
+
+      const requestPayload = {
+        umlModel: modelo,
+        databaseConfig: dbConfig
+      };
+
+      const response = await api.post('/generate/backend', requestPayload, {
+        responseType: 'blob'
+      });
+
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'umlforge-generated-backend.zip');
+      document.body.appendChild(link);
+      link.click();
+      
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(link);
+
+      alert('Backend generado correctamente.');
+    } catch (error) {
+      console.error('Error generando backend:', error);
+      alert('Error al generar el backend.');
+    } finally {
+      setIsGeneratingBackend(false);
+    }
+  };
+
+  const handleGenerateMobile = async () => {
+    try {
+      setIsGeneratingMobile(true);
+      const modelo = buildCurrentModel();
+
+      const response = await api.post('/generate/mobile', modelo, {
+        responseType: 'blob'
+      });
+
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'umlforge-generated-mobile.zip');
+      document.body.appendChild(link);
+      link.click();
+      
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(link);
+
+      alert('App Flutter generada correctamente.');
+    } catch (error) {
+      console.error('Error generando app móvil:', error);
+      alert('Error al generar la aplicación móvil.');
+    } finally {
+      setIsGeneratingMobile(false);
+    }
+  };
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -288,8 +353,8 @@ export default function UMLEditor() {
     setSelectedTool('select');
   };
 
-  const handleImportXmi = (model: UmlModelJson) => {
-    const importedNodes: Node[] = model.clases.map(umlClass => ({
+  const applyUmlModel = (model: UmlModelJson) => {
+    const modelNodes: Node[] = model.clases.map(umlClass => ({
       id: umlClass.id.toString(),
       type: 'umlClass',
       position: { x: umlClass.posicionX, y: umlClass.posicionY },
@@ -300,7 +365,7 @@ export default function UMLEditor() {
         metodos: umlClass.metodos || []
       }
     }));
-    const importedEdges: Edge[] = model.relaciones.map(relation => ({
+    const modelEdges: Edge[] = model.relaciones.map(relation => ({
       id: relation.id.toString(),
       source: relation.origen.toString(),
       target: relation.destino.toString(),
@@ -316,13 +381,17 @@ export default function UMLEditor() {
 
     edges.forEach(edge => broadcastEvent('EDGE_DELETED', edge.id));
     nodes.forEach(node => broadcastEvent('NODE_DELETED', node.id));
-    importedNodes.forEach(node => broadcastEvent('NODE_CREATED', node.id, node));
-    importedEdges.forEach(edge => broadcastEvent('EDGE_CREATED', edge.id, edge));
+    modelNodes.forEach(node => broadcastEvent('NODE_CREATED', node.id, node));
+    modelEdges.forEach(edge => broadcastEvent('EDGE_CREATED', edge.id, edge));
 
-    setNodes(importedNodes);
-    setEdges(importedEdges);
+    setNodes(modelNodes);
+    setEdges(modelEdges);
     setSelectedNodeId(null);
     setSelectedEdgeId(null);
+  };
+
+  const handleImportXmi = (model: UmlModelJson) => {
+    applyUmlModel(model);
     setShowXmiImport(false);
     alert('Modelo XMI importado. Recuerda guardar los cambios.');
   };
@@ -429,7 +498,12 @@ export default function UMLEditor() {
             <button className="px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded transition-colors">Imagen</button>
             <button onClick={() => setShowXmiImport(true)} className="px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded transition-colors">Importar XMI</button>
             <button onClick={() => setShowXmiExport(true)} className="px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded transition-colors">Exportar XMI</button>
-            <button className="px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded transition-colors">Generar backend</button>
+            <button onClick={() => setShowGenerateBackendModal(true)} disabled={isGeneratingBackend} className="px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded transition-colors disabled:opacity-50">
+              {isGeneratingBackend ? 'Generando backend...' : 'Generar backend'}
+            </button>
+            <button onClick={() => setShowGenerateMobileModal(true)} disabled={isGeneratingMobile} className="px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded transition-colors disabled:opacity-50">
+              {isGeneratingMobile ? 'Generando móvil...' : 'Generar App Móvil'}
+            </button>
             
             <button 
               onClick={handleSave}
@@ -444,7 +518,6 @@ export default function UMLEditor() {
 
       {/* WORKSPACE */}
       <div className="flex-1 flex overflow-hidden relative min-w-0 min-h-0">
-        
         {/* SIDEBAR HERRAMIENTAS */}
         <aside className="w-14 lg:w-48 bg-white/95 backdrop-blur-md border-r border-lila-light/50 flex flex-col py-4 z-40 shadow-[4px_0_24px_rgba(139,92,246,0.03)] overflow-y-auto shrink-0">
           <div className="hidden lg:block px-4 mb-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Herramientas</div>
@@ -948,6 +1021,131 @@ export default function UMLEditor() {
                   )}
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showGenerateBackendModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col">
+            <div className="p-5 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
+              <h2 className="text-lg font-bold text-gray-800">Confirmar generación de Backend</h2>
+              <button onClick={() => setShowGenerateBackendModal(false)} className="text-gray-500 hover:text-gray-800">Cerrar</button>
+            </div>
+            <div className="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
+              <p className="text-sm text-gray-600">Se generará un proyecto Spring Boot basado en el diagrama actual con las siguientes características:</p>
+              
+              <div className="bg-gray-50 p-4 rounded-lg space-y-2 text-sm text-gray-700">
+                <p><strong>Clases encontradas:</strong> {nodes.length}</p>
+                <p><strong>Nombres:</strong> {nodes.map(n => n.data.nombre).join(', ') || 'Ninguna'}</p>
+                <p><strong>Relaciones:</strong> {edges.length}</p>
+              </div>
+
+              <div className="bg-lila-light/10 p-4 rounded-lg text-sm text-gray-700">
+                <p className="font-bold text-lila-main mb-2">Configuración PostgreSQL</p>
+                <div className="space-y-3">
+                  <div className="flex gap-4">
+                    <div className="flex-1">
+                      <label className="block text-xs font-bold text-gray-500 mb-1">Host</label>
+                      <input id="db-host" type="text" defaultValue="localhost" className="w-full px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-lila-main" />
+                    </div>
+                    <div className="w-24">
+                      <label className="block text-xs font-bold text-gray-500 mb-1">Puerto</label>
+                      <input id="db-port" type="number" defaultValue="5432" className="w-full px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-lila-main" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 mb-1">Nombre Base de Datos</label>
+                    <input id="db-name" type="text" defaultValue="generated_db" className="w-full px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-lila-main" />
+                  </div>
+                  <div className="flex gap-4">
+                    <div className="flex-1">
+                      <label className="block text-xs font-bold text-gray-500 mb-1">Usuario</label>
+                      <input id="db-user" type="text" defaultValue="postgres" className="w-full px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-lila-main" />
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-xs font-bold text-gray-500 mb-1">Contraseña</label>
+                      <input id="db-pass" type="password" className="w-full px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-lila-main" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="p-5 border-t border-gray-200 bg-gray-50 flex justify-end gap-3">
+              <button 
+                onClick={() => setShowGenerateBackendModal(false)}
+                className="px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-200 rounded-lg transition-colors"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={() => {
+                  const dbHost = (document.getElementById('db-host') as HTMLInputElement).value;
+                  const dbPort = (document.getElementById('db-port') as HTMLInputElement).value;
+                  const dbName = (document.getElementById('db-name') as HTMLInputElement).value;
+                  const dbUser = (document.getElementById('db-user') as HTMLInputElement).value;
+                  const dbPass = (document.getElementById('db-pass') as HTMLInputElement).value;
+                  setShowGenerateBackendModal(false);
+                  handleGenerateBackend({
+                    host: dbHost,
+                    port: parseInt(dbPort),
+                    databaseName: dbName,
+                    username: dbUser,
+                    password: dbPass
+                  });
+                }}
+                className="px-4 py-2 bg-gradient-to-r from-lila-main to-pink-main text-white text-sm font-bold rounded-lg hover:opacity-90 transition-opacity"
+              >
+                Generar ZIP
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showGenerateMobileModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col">
+            <div className="p-5 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
+              <h2 className="text-lg font-bold text-gray-800">Confirmar generación de App Móvil</h2>
+              <button onClick={() => setShowGenerateMobileModal(false)} className="text-gray-500 hover:text-gray-800">Cerrar</button>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-gray-600">Se generará un proyecto Flutter basado en el diagrama actual con las siguientes características:</p>
+              
+              <div className="bg-gray-50 p-4 rounded-lg space-y-2 text-sm text-gray-700">
+                <p><strong>Clases detectadas:</strong> {nodes.length}</p>
+                <p><strong>Modelos Dart y Pantallas CRUD:</strong> {nodes.map(n => n.data.nombre).join(', ') || 'Ninguna'}</p>
+                <p><strong>Servicios REST:</strong> {nodes.map(n => `${n.data.nombre}Service`).join(', ') || 'Ninguno'}</p>
+              </div>
+
+              <div className="bg-blue-50 p-4 rounded-lg text-sm text-gray-700 border border-blue-100">
+                <p className="font-bold text-blue-600 mb-2">Tecnologías incluidas:</p>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li>Flutter (Base Project)</li>
+                  <li>Dart (Modelos fuertemente tipados)</li>
+                  <li>HTTP REST (Consumo de APIs)</li>
+                  <li>Widgets de Material Design</li>
+                </ul>
+              </div>
+            </div>
+            <div className="p-5 border-t border-gray-200 bg-gray-50 flex justify-end gap-3">
+              <button 
+                onClick={() => setShowGenerateMobileModal(false)}
+                className="px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-200 rounded-lg transition-colors"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={() => {
+                  setShowGenerateMobileModal(false);
+                  handleGenerateMobile();
+                }}
+                className="px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-500 text-white text-sm font-bold rounded-lg hover:opacity-90 transition-opacity"
+              >
+                Generar App Flutter
+              </button>
             </div>
           </div>
         </div>

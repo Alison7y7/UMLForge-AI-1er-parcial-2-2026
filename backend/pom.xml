@@ -30,6 +30,18 @@
 		<java.version>17</java.version>
 	</properties>
 	<dependencies>
+	<dependency>
+        <groupId>me.paulschwarz</groupId>
+        <artifactId>spring-dotenv</artifactId>
+        <version>4.0.0</version>
+    </dependency>
+
+    <!-- AWS Bedrock -->
+    <dependency>
+       <groupId>software.amazon.awssdk</groupId>
+       <artifactId>bedrockruntime</artifactId>
+       <version>2.30.38</version>
+    </dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-data-jpa</artifactId>
