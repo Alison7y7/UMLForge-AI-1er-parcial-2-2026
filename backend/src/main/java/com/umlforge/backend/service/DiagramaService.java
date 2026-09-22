@@ -45,10 +45,16 @@ public class DiagramaService {
     }
 
     public DiagramaResponse obtenerDiagrama(Long id, Usuario actor) {
-        Diagrama diagrama = diagramaRepository.findById(id).orElseThrow(() -> new RuntimeException("Diagrama no encontrado"));
-        validarAccesoProyecto(diagrama.getProyecto(), actor);
+        Diagrama diagrama = obtenerEntidadConAcceso(id, actor);
 
         return mapToResponse(diagrama);
+    }
+
+    public Diagrama obtenerEntidadConAcceso(Long id, Usuario actor) {
+        Diagrama diagrama = diagramaRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Diagrama no encontrado"));
+        validarAccesoProyecto(diagrama.getProyecto(), actor);
+        return diagrama;
     }
 
     @Transactional

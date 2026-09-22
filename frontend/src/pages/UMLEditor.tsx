@@ -20,6 +20,7 @@ import UmlClassNode from '../components/editor/UmlClassNode';
 import UmlRelationEdge from '../components/editor/UmlRelationEdge';
 import XmiImportModal from '../components/xmi/XmiImportModal';
 import XmiExportModal from '../components/xmi/XmiExportModal';
+import IAModelModal from '../components/ia/IAModelModal';
 import type { UmlModelJson } from '../types/uml';
 import { useCollaboration } from '../hooks/useCollaboration';
 
@@ -78,6 +79,7 @@ export default function UMLEditor() {
   const [showHistory, setShowHistory] = useState(false);
   const [showXmiImport, setShowXmiImport] = useState(false);
   const [showXmiExport, setShowXmiExport] = useState(false);
+  const [showIaModal, setShowIaModal] = useState(false);
   const [selectedTool, setSelectedTool] = useState('select');
   const [pendingRelationSourceId, setPendingRelationSourceId] = useState<string | null>(null);
   const [relationError, setRelationError] = useState('');
@@ -494,7 +496,7 @@ export default function UMLEditor() {
           </div>
           <div className="flex items-center gap-1">
             <button onClick={() => setShowHistory(true)} className="px-3 py-1.5 text-xs font-bold text-lila-main bg-lila-light/10 hover:bg-lila-light/20 rounded-lg transition-colors">Actividad</button>
-            <button className="px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded transition-colors">Asistente IA</button>
+            <button onClick={() => setShowIaModal(true)} className="px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded transition-colors">Asistente IA</button>
             <button className="px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded transition-colors">Imagen</button>
             <button onClick={() => setShowXmiImport(true)} className="px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded transition-colors">Importar XMI</button>
             <button onClick={() => setShowXmiExport(true)} className="px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded transition-colors">Exportar XMI</button>
@@ -1164,6 +1166,18 @@ export default function UMLEditor() {
           diagramName={nombreDiagrama}
           model={buildCurrentModel()}
           onClose={() => setShowXmiExport(false)}
+        />
+      )}
+
+      {showIaModal && (
+        <IAModelModal
+          diagramaId={id ? Number(id) : null}
+          hasExistingContent={nodes.length > 0}
+          onClose={() => setShowIaModal(false)}
+          onApply={(model) => {
+            applyUmlModel(model);
+            setShowIaModal(false);
+          }}
         />
       )}
     </div>
