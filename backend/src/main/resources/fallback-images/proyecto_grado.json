@@ -1,0 +1,15 @@
+{
+  "clases": [
+    {"id": "alumno", "nombre": "Alumno", "estereotipo": "entity", "posicionX": 100, "posicionY": 100, "atributos": [{"id": "alumno-id", "nombre": "id", "tipo": "Long", "visibilidad": "private"}], "metodos": []},
+    {"id": "proyecto_grado", "nombre": "Proyecto_Grado", "estereotipo": "entity", "posicionX": 300, "posicionY": 100, "atributos": [{"id": "proyecto-id", "nombre": "id", "tipo": "Long", "visibilidad": "private"}], "metodos": []},
+    {"id": "docente", "nombre": "Docente", "estereotipo": "entity", "posicionX": 100, "posicionY": 300, "atributos": [{"id": "docente-id", "nombre": "id", "tipo": "Long", "visibilidad": "private"}], "metodos": []},
+    {"id": "grupo_investigacion", "nombre": "Grupo_Investigacion", "estereotipo": "entity", "posicionX": 300, "posicionY": 300, "atributos": [{"id": "grupo-id", "nombre": "id", "tipo": "Long", "visibilidad": "private"}], "metodos": []},
+    {"id": "tribunal", "nombre": "Tribunal", "estereotipo": "entity", "posicionX": 500, "posicionY": 100, "atributos": [{"id": "tribunal-id", "nombre": "id", "tipo": "Long", "visibilidad": "private"}], "metodos": []}
+  ],
+  "relaciones": [
+    {"id": "rel-alumno-proyecto", "origen": "alumno", "destino": "proyecto_grado", "tipo": "ASOCIACION", "nombre": "realiza", "multiplicidadOrigen": "1", "multiplicidadDestino": "1"},
+    {"id": "rel-proyecto-grupo", "origen": "proyecto_grado", "destino": "grupo_investigacion", "tipo": "ASOCIACION", "nombre": "pertenece", "multiplicidadOrigen": "*", "multiplicidadDestino": "1"},
+    {"id": "rel-docente-proyecto", "origen": "docente", "destino": "proyecto_grado", "tipo": "ASOCIACION", "nombre": "dirige", "multiplicidadOrigen": "1", "multiplicidadDestino": "*"},
+    {"id": "rel-tribunal-proyecto", "origen": "tribunal", "destino": "proyecto_grado", "tipo": "ASOCIACION", "nombre": "evalua", "multiplicidadOrigen": "1", "multiplicidadDestino": "*"}
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "clases": [
+    {"id": "estudio", "nombre": "Estudio", "estereotipo": "entity", "posicionX": 100, "posicionY": 100, "atributos": [{"id": "estudio-id", "nombre": "id", "tipo": "Long", "visibilidad": "private"}], "metodos": []},
+    {"id": "pelicula", "nombre": "Pelicula", "estereotipo": "entity", "posicionX": 300, "posicionY": 100, "atributos": [{"id": "pelicula-id", "nombre": "id", "tipo": "Long", "visibilidad": "private"}], "metodos": []},
+    {"id": "actor", "nombre": "Actor", "estereotipo": "entity", "posicionX": 100, "posicionY": 300, "atributos": [{"id": "actor-id", "nombre": "id", "tipo": "Long", "visibilidad": "private"}], "metodos": []},
+    {"id": "estante", "nombre": "Estante", "estereotipo": "entity", "posicionX": 300, "posicionY": 300, "atributos": [{"id": "estante-id", "nombre": "id", "tipo": "Long", "visibilidad": "private"}], "metodos": []}
+  ],
+  "relaciones": [
+    {"id": "rel-estudio-pelicula", "origen": "estudio", "destino": "pelicula", "tipo": "ASOCIACION", "nombre": "produce", "multiplicidadOrigen": "1", "multiplicidadDestino": "*"},
+    {"id": "rel-pelicula-estante", "origen": "pelicula", "destino": "estante", "tipo": "ASOCIACION", "nombre": "pertenece", "multiplicidadOrigen": "*", "multiplicidadDestino": "1"},
+    {"id": "rel-actor-pelicula", "origen": "actor", "destino": "pelicula", "tipo": "ASOCIACION", "nombre": "participa", "multiplicidadOrigen": "1", "multiplicidadDestino": "*"}
+  ]
+}

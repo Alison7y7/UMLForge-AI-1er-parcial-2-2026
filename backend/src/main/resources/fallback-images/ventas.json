@@ -1,0 +1,113 @@
+{
+  "clases": [
+    {
+      "id": "producto",
+      "nombre": "Producto",
+      "estereotipo": "entity",
+      "posicionX": 100,
+      "posicionY": 100,
+      "atributos": [
+        {"id": "producto-id", "nombre": "id", "tipo": "Long", "visibilidad": "private"},
+        {"id": "producto-codigo", "nombre": "codigo", "tipo": "String", "visibilidad": "private"},
+        {"id": "producto-nombre", "nombre": "nombre", "tipo": "String", "visibilidad": "private"},
+        {"id": "producto-precio", "nombre": "precio", "tipo": "Double", "visibilidad": "private"},
+        {"id": "producto-idCategoria", "nombre": "idCategoria", "tipo": "Long", "visibilidad": "private"}
+      ],
+      "metodos": []
+    },
+    {
+      "id": "cliente",
+      "nombre": "Cliente",
+      "estereotipo": "entity",
+      "posicionX": 300,
+      "posicionY": 100,
+      "atributos": [
+        {"id": "cliente-id", "nombre": "id", "tipo": "Long", "visibilidad": "private"},
+        {"id": "cliente-ci", "nombre": "ci", "tipo": "String", "visibilidad": "private"},
+        {"id": "cliente-nombre", "nombre": "nombre", "tipo": "String", "visibilidad": "private"},
+        {"id": "cliente-telefono", "nombre": "telefono", "tipo": "String", "visibilidad": "private"}
+      ],
+      "metodos": []
+    },
+    {
+      "id": "factura",
+      "nombre": "Factura",
+      "estereotipo": "entity",
+      "posicionX": 300,
+      "posicionY": 300,
+      "atributos": [
+        {"id": "factura-id", "nombre": "id", "tipo": "Long", "visibilidad": "private"},
+        {"id": "factura-nro", "nombre": "nro", "tipo": "String", "visibilidad": "private"},
+        {"id": "factura-fecha", "nombre": "fecha", "tipo": "Date", "visibilidad": "private"},
+        {"id": "factura-monto", "nombre": "monto", "tipo": "Double", "visibilidad": "private"},
+        {"id": "factura-cliente", "nombre": "cliente", "tipo": "String", "visibilidad": "private"}
+      ],
+      "metodos": []
+    },
+    {
+      "id": "detalle-factura",
+      "nombre": "DetalleFactura",
+      "estereotipo": "entity",
+      "posicionX": 100,
+      "posicionY": 300,
+      "atributos": [
+        {"id": "detalle-id", "nombre": "id", "tipo": "Long", "visibilidad": "private"},
+        {"id": "detalle-nro", "nombre": "nro", "tipo": "String", "visibilidad": "private"},
+        {"id": "detalle-cantidad", "nombre": "cantidad", "tipo": "Integer", "visibilidad": "private"},
+        {"id": "detalle-precio", "nombre": "precio", "tipo": "Double", "visibilidad": "private"},
+        {"id": "detalle-codigo", "nombre": "codigo", "tipo": "String", "visibilidad": "private"}
+      ],
+      "metodos": []
+    },
+    {
+      "id": "categoria",
+      "nombre": "Categoria",
+      "estereotipo": "entity",
+      "posicionX": 500,
+      "posicionY": 100,
+      "atributos": [
+        {"id": "categoria-id", "nombre": "id", "tipo": "Long", "visibilidad": "private"},
+        {"id": "categoria-descripcion", "nombre": "descripcion", "tipo": "String", "visibilidad": "private"}
+      ],
+      "metodos": []
+    }
+  ],
+  "relaciones": [
+    {
+      "id": "relacion-categoria-producto",
+      "origen": "categoria",
+      "destino": "producto",
+      "tipo": "ASOCIACION",
+      "nombre": "tiene",
+      "multiplicidadOrigen": "1",
+      "multiplicidadDestino": "*"
+    },
+    {
+      "id": "relacion-producto-detalle",
+      "origen": "producto",
+      "destino": "detalle-factura",
+      "tipo": "ASOCIACION",
+      "nombre": "incluido_en",
+      "multiplicidadOrigen": "1",
+      "multiplicidadDestino": "*"
+    },
+    {
+      "id": "relacion-factura-detalle",
+      "origen": "factura",
+      "destino": "detalle-factura",
+      "tipo": "ASOCIACION",
+      "nombre": "contiene",
+      "multiplicidadOrigen": "1",
+      "multiplicidadDestino": "*"
+    },
+    {
+      "id": "relacion-cliente-factura",
+      "origen": "cliente",
+      "destino": "factura",
+      "tipo": "ASOCIACION",
+      "nombre": "realiza",
+      "multiplicidadOrigen": "1",
+      "multiplicidadDestino": "*"
+    }
+  ]
+}

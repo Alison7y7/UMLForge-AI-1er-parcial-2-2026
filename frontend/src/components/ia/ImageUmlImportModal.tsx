@@ -17,6 +17,7 @@ interface ImageUmlImportModalProps {
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
 const ACCEPTED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 
+
 export default function ImageUmlImportModal({
   diagramaId,
   hasExistingContent,
@@ -191,7 +192,7 @@ export default function ImageUmlImportModal({
                 </div>
                 <div className="flex flex-wrap gap-2 text-xs font-semibold">
                   <span className="rounded-full bg-lila-light/40 px-3 py-1 text-lila-main">
-                    Proveedor: {result.proveedor}
+                    Proveedor: {result.proveedor === 'fallback-local-image' ? 'Motor de Pruebas Locales UML' : result.proveedor === 'gemini-vision' ? 'Gemini Vision' : result.proveedor === 'ollama-vision' ? 'Ollama Vision' : result.proveedor}
                   </span>
                   {result.tokensUsados !== null && (
                     <span className="rounded-full bg-gray-100 px-3 py-1 text-gray-600">

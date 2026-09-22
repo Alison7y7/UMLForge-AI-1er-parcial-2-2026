@@ -1,0 +1,97 @@
+{
+  "clases": [
+    {
+      "id": "curso",
+      "nombre": "Curso",
+      "estereotipo": "entity",
+      "posicionX": 100,
+      "posicionY": 100,
+      "atributos": [
+        {"id": "curso-id", "nombre": "id", "tipo": "Long", "visibilidad": "private"}
+      ],
+      "metodos": []
+    },
+    {
+      "id": "tema",
+      "nombre": "Tema",
+      "estereotipo": "entity",
+      "posicionX": 300,
+      "posicionY": 100,
+      "atributos": [
+        {"id": "tema-id", "nombre": "id", "tipo": "Long", "visibilidad": "private"}
+      ],
+      "metodos": []
+    },
+    {
+      "id": "edicion",
+      "nombre": "Edicion",
+      "estereotipo": "entity",
+      "posicionX": 100,
+      "posicionY": 300,
+      "atributos": [
+        {"id": "edicion-id", "nombre": "id", "tipo": "Long", "visibilidad": "private"}
+      ],
+      "metodos": []
+    },
+    {
+      "id": "empleado",
+      "nombre": "Empleado",
+      "estereotipo": "entity",
+      "posicionX": 300,
+      "posicionY": 300,
+      "atributos": [
+        {"id": "empleado-id", "nombre": "id", "tipo": "Long", "visibilidad": "private"}
+      ],
+      "metodos": []
+    },
+    {
+      "id": "nota",
+      "nombre": "Nota",
+      "estereotipo": "entity",
+      "posicionX": 100,
+      "posicionY": 500,
+      "atributos": [
+        {"id": "nota-id", "nombre": "id", "tipo": "Long", "visibilidad": "private"}
+      ],
+      "metodos": []
+    }
+  ],
+  "relaciones": [
+    {
+      "id": "relacion-curso-tema",
+      "origen": "curso",
+      "destino": "tema",
+      "tipo": "ASOCIACION",
+      "nombre": "pertenece_a",
+      "multiplicidadOrigen": "1",
+      "multiplicidadDestino": "1"
+    },
+    {
+      "id": "relacion-curso-edicion",
+      "origen": "curso",
+      "destino": "edicion",
+      "tipo": "ASOCIACION",
+      "nombre": "tiene",
+      "multiplicidadOrigen": "1",
+      "multiplicidadDestino": "*"
+    },
+    {
+      "id": "relacion-empleado-edicion",
+      "origen": "empleado",
+      "destino": "edicion",
+      "tipo": "ASOCIACION",
+      "nombre": "enseña",
+      "multiplicidadOrigen": "1",
+      "multiplicidadDestino": "*"
+    },
+    {
+      "id": "relacion-edicion-nota",
+      "origen": "edicion",
+      "destino": "nota",
+      "tipo": "ASOCIACION",
+      "nombre": "tiene",
+      "multiplicidadOrigen": "1",
+      "multiplicidadDestino": "*"
+    }
+  ]
+}
