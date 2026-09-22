@@ -114,7 +114,9 @@ export function useCollaboration(diagramaId: string | undefined) {
     setConnectionStatus('Conectando...');
 
     const client = new Client({
-      webSocketFactory: () => new SockJS('http://localhost:8080/ws-uml'),
+      webSocketFactory: () => new SockJS(
+        import.meta.env.VITE_WS_URL || 'http://localhost:8080/ws-uml'
+      ),
       connectHeaders: {
         Authorization: `Bearer ${token}`
       },

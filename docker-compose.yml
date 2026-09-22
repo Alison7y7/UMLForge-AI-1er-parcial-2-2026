@@ -1,0 +1,98 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:?Configure DB_NAME in .env}
+      POSTGRES_USER: ${DB_USER:?Configure DB_USER in .env}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Configure DB_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - umlforge_internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  ollama:
+    image: ${OLLAMA_IMAGE:-ollama/ollama:latest}
+    restart: unless-stopped
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - umlforge_internal
+    expose:
+      - "11434"
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:?Configure DB_NAME in .env}
+      DB_USER: ${DB_USER:?Configure DB_USER in .env}
+      DB_PASSWORD: ${DB_PASSWORD:?Configure DB_PASSWORD in .env}
+      JWT_SECRET: ${JWT_SECRET:?Configure JWT_SECRET in .env}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
+      JPA_SHOW_SQL: "false"
+      OLLAMA_ENABLED: "true"
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:1.5b}
+      GEMINI_ENABLED: "true"
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.0-flash}
+      IMAGE_OLLAMA_ENABLED: "true"
+      IMAGE_OLLAMA_BASE_URL: http://ollama:11434
+      IMAGE_OLLAMA_MODEL: ${IMAGE_OLLAMA_MODEL:-gemma3:4b}
+      IMAGE_GEMINI_ENABLED: "true"
+      IMAGE_GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      IMAGE_GEMINI_MODEL: ${IMAGE_GEMINI_MODEL:-gemini-2.0-flash}
+      JAVA_TOOL_OPTIONS: ${JAVA_TOOL_OPTIONS:--XX:MaxRAMPercentage=75.0}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    networks:
+      - umlforge_internal
+    expose:
+      - "8080"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: /api
+        VITE_WS_URL: /ws-uml
+    restart: unless-stopped
+    depends_on:
+      - backend
+    networks:
+      - umlforge_internal
+    ports:
+      - "${HTTP_PORT:-80}:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost/ >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+networks:
+  umlforge_internal:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  ollama_data:

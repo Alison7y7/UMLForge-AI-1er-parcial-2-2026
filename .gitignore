@@ -21,3 +21,7 @@ Thumbs.db
 # Logs
 *.log
 backend/src/main/resources/application.properties
+
+# Variables de entorno raíz
+.env
+.env.*
