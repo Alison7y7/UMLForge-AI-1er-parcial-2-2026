@@ -9,6 +9,7 @@ import Roles from './pages/Roles';
 import ProjectDiagrams from './pages/ProjectDiagrams';
 import UMLEditor from './pages/UMLEditor';
 import Proyectos from './pages/Proyectos';
+import Bitacora from './pages/Bitacora';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const token = useAuthStore((state) => state.token);
@@ -42,6 +43,7 @@ export default function App() {
         <Route path="/proyectos" element={<ProtectedRoute><Proyectos /></ProtectedRoute>} />
         <Route path="/proyectos/:id" element={<ProtectedRoute><ProjectDiagrams /></ProtectedRoute>} />
         <Route path="/diagramas/:id" element={<ProtectedRoute><UMLEditor /></ProtectedRoute>} />
+        <Route path="/bitacora" element={<PermissionRoute permission="CONSULTAR_BITACORA"><Bitacora /></PermissionRoute>} />
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>

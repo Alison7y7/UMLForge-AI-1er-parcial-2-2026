@@ -30,6 +30,7 @@ public class AuthController {
     private final UsuarioRepository usuarioRepository;
     private final RolRepository rolRepository;
     private final PasswordEncoder passwordEncoder;
+    private final com.umlforge.backend.service.BitacoraService bitacoraService;
 
     @PostMapping("/register")
     @org.springframework.transaction.annotation.Transactional
@@ -43,7 +44,7 @@ public class AuthController {
         }
 
         if (usuarioRepository.existsByCorreo(request.getCorreo())) {
-            return ResponseEntity.status(HttpStatus.CONFLICT).body("El correo ya está registrado.");
+            return ResponseEntity.status(HttpStatus.CONFLICT).body("El correo ya estǭ registrado.");
         }
 
         String rolNombre = request.getRol().toUpperCase();
@@ -69,6 +70,8 @@ public class AuthController {
 
         usuarioRepository.save(usuario);
 
+        bitacoraService.registrarAccion(usuario, null, "REGISTER", "Usuario registrado exitosamente");
+
         return ResponseEntity.status(HttpStatus.CREATED).body("Usuario registrado correctamente.");
     }
 
@@ -88,6 +91,8 @@ public class AuthController {
                 .map(org.springframework.security.core.GrantedAuthority::getAuthority)
                 .filter(auth -> !auth.startsWith("ROLE_"))
                 .toList();
+        
+        bitacoraService.registrarAccion(usuario, null, "LOGIN", "Usuario inició sesión");
         
         AuthResponse response = new AuthResponse(
                 token,

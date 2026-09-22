@@ -13,15 +13,27 @@ import org.springframework.web.bind.annotation.*;
 public class MobileGeneratorController {
 
     private final FlutterProjectFacade flutterProjectFacade;
+    private final com.umlforge.backend.service.BitacoraService bitacoraService;
+    private final com.umlforge.backend.repository.UsuarioRepository usuarioRepository;
 
-    public MobileGeneratorController(FlutterProjectFacade flutterProjectFacade) {
+    public MobileGeneratorController(FlutterProjectFacade flutterProjectFacade,
+                                     com.umlforge.backend.service.BitacoraService bitacoraService,
+                                     com.umlforge.backend.repository.UsuarioRepository usuarioRepository) {
         this.flutterProjectFacade = flutterProjectFacade;
+        this.bitacoraService = bitacoraService;
+        this.usuarioRepository = usuarioRepository;
     }
 
     @PostMapping("/mobile")
-    public ResponseEntity<byte[]> generateMobileApp(@RequestBody UmlModelDto modelDto) {
+    public ResponseEntity<byte[]> generateMobileApp(@RequestBody UmlModelDto modelDto, org.springframework.security.core.Authentication authentication) {
         try {
             byte[] zipData = flutterProjectFacade.generateMobileApp(modelDto);
+            
+            if (authentication != null) {
+                usuarioRepository.findByCorreo(authentication.getName()).ifPresent(usuario -> 
+                    bitacoraService.registrarAccion(usuario, null, "GENERAR_MOBILE", "Generó aplicación Flutter desde UML")
+                );
+            }
             
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.valueOf("application/zip"));

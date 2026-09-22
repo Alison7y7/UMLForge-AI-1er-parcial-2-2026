@@ -253,9 +253,9 @@ export default function Roles() {
                 </Link>
               )}
               {user?.permisos?.includes('CONSULTAR_BITACORA') && (
-                <a href="#" className="flex items-center px-4 py-3 text-gray-500 hover:bg-gray-50 hover:text-text-dark rounded-2xl font-medium transition-all group">
+                <Link to="/bitacora" className="flex items-center px-4 py-3 text-gray-500 hover:bg-gray-50 hover:text-text-dark rounded-2xl font-medium transition-all group">
                   <Clock className="w-5 h-5 mr-3 text-gray-400 group-hover:text-pink-main transition-colors" /> Bitácora
-                </a>
+                </Link>
               )}
             </>
           )}

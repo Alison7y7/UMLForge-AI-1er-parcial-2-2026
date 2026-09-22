@@ -18,9 +18,15 @@ import java.nio.charset.StandardCharsets;
 public class XmiExportController {
 
     private final XmiExportService xmiExportService;
+    private final com.umlforge.backend.service.BitacoraService bitacoraService;
+    private final com.umlforge.backend.repository.UsuarioRepository usuarioRepository;
 
-    public XmiExportController(XmiExportService xmiExportService) {
+    public XmiExportController(XmiExportService xmiExportService,
+                               com.umlforge.backend.service.BitacoraService bitacoraService,
+                               com.umlforge.backend.repository.UsuarioRepository usuarioRepository) {
         this.xmiExportService = xmiExportService;
+        this.bitacoraService = bitacoraService;
+        this.usuarioRepository = usuarioRepository;
     }
 
     @PostMapping(
@@ -28,8 +34,14 @@ public class XmiExportController {
         consumes = MediaType.APPLICATION_JSON_VALUE,
         produces = MediaType.APPLICATION_XML_VALUE
     )
-    public ResponseEntity<byte[]> exportar(@RequestBody XmiExportRequest request) {
+    public ResponseEntity<byte[]> exportar(@RequestBody XmiExportRequest request, org.springframework.security.core.Authentication authentication) {
         byte[] xmi = xmiExportService.exportar(request.nombre(), request.modelo());
+        
+        if (authentication != null) {
+            usuarioRepository.findByCorreo(authentication.getName()).ifPresent(usuario -> 
+                bitacoraService.registrarAccion(usuario, null, "EXPORTAR_XMI", "Exportó el diagrama a XMI: " + request.nombre())
+            );
+        }
         ContentDisposition disposition = ContentDisposition.attachment()
             .filename(xmiExportService.nombreArchivo(request.nombre()), StandardCharsets.UTF_8)
             .build();

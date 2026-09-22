@@ -20,21 +20,34 @@ public class XmiController {
     private final XmiImportService xmiImportService;
     private final UmlModelValidator umlModelValidator;
     private final XmiUmlModelMapper xmiUmlModelMapper;
+    private final com.umlforge.backend.service.BitacoraService bitacoraService;
+    private final com.umlforge.backend.repository.UsuarioRepository usuarioRepository;
 
     public XmiController(
             XmiImportService xmiImportService,
             UmlModelValidator umlModelValidator,
-            XmiUmlModelMapper xmiUmlModelMapper) {
+            XmiUmlModelMapper xmiUmlModelMapper,
+            com.umlforge.backend.service.BitacoraService bitacoraService,
+            com.umlforge.backend.repository.UsuarioRepository usuarioRepository) {
         this.xmiImportService = xmiImportService;
         this.umlModelValidator = umlModelValidator;
         this.xmiUmlModelMapper = xmiUmlModelMapper;
+        this.bitacoraService = bitacoraService;
+        this.usuarioRepository = usuarioRepository;
     }
 
     @PostMapping(value = "/importar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<UmlModelDto> importar(@RequestParam("archivo") MultipartFile archivo) {
+    public ResponseEntity<UmlModelDto> importar(@RequestParam("archivo") MultipartFile archivo, org.springframework.security.core.Authentication authentication) {
         XmiImportResponse xmiModel = xmiImportService.importar(archivo);
         UmlModelDto model = xmiUmlModelMapper.toUmlModel(xmiModel);
         umlModelValidator.validate(model);
+        
+        if (authentication != null) {
+            usuarioRepository.findByCorreo(authentication.getName()).ifPresent(usuario -> 
+                bitacoraService.registrarAccion(usuario, null, "IMPORTAR_XMI", "Importó el archivo XMI: " + archivo.getOriginalFilename())
+            );
+        }
+        
         return ResponseEntity.ok(model);
     }
 }

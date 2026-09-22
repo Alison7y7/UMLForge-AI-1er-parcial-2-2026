@@ -19,9 +19,15 @@ import java.nio.charset.StandardCharsets;
 public class BackendGeneratorController {
 
     private final BackendGeneratorFacade backendGeneratorFacade;
+    private final com.umlforge.backend.service.BitacoraService bitacoraService;
+    private final com.umlforge.backend.repository.UsuarioRepository usuarioRepository;
 
-    public BackendGeneratorController(BackendGeneratorFacade backendGeneratorFacade) {
+    public BackendGeneratorController(BackendGeneratorFacade backendGeneratorFacade,
+                                      com.umlforge.backend.service.BitacoraService bitacoraService,
+                                      com.umlforge.backend.repository.UsuarioRepository usuarioRepository) {
         this.backendGeneratorFacade = backendGeneratorFacade;
+        this.bitacoraService = bitacoraService;
+        this.usuarioRepository = usuarioRepository;
     }
 
     @PostMapping(
@@ -29,8 +35,14 @@ public class BackendGeneratorController {
         consumes = MediaType.APPLICATION_JSON_VALUE, 
         produces = "application/zip"
     )
-    public ResponseEntity<byte[]> generateBackend(@RequestBody BackendGenerationRequest request) {
+    public ResponseEntity<byte[]> generateBackend(@RequestBody BackendGenerationRequest request, org.springframework.security.core.Authentication authentication) {
         byte[] zipData = backendGeneratorFacade.generateBackend(request);
+
+        if (authentication != null) {
+            usuarioRepository.findByCorreo(authentication.getName()).ifPresent(usuario -> 
+                bitacoraService.registrarAccion(usuario, null, "GENERAR_BACKEND", "Generó aplicación Spring Boot desde UML")
+            );
+        }
 
         ContentDisposition disposition = ContentDisposition.attachment()
                 .filename("umlforge-generated-backend.zip", StandardCharsets.UTF_8)
