@@ -17,11 +17,81 @@ import java.util.List;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class XmiExportServiceTests {
+    @Test
+    void exportaEImportaAssociationClassSinDesdoblarLaAsociacion() throws Exception {
+        List<XmiImportResponse.UmlClass> classes = List.of(
+            umlClass("venta", "Venta", 10, 10, List.of(attribute("v1", "id", "int")), List.of()),
+            umlClass("producto", "Producto", 200, 10, List.of(attribute("p1", "id", "int")), List.of()),
+            umlClass("detalle", "Detalle", 100, 200, List.of(attribute("d1", "cantidad", "String")), List.of())
+        );
+        List<XmiImportResponse.UmlRelation> relations = List.of(
+            new XmiImportResponse.UmlRelation("r1", "venta", "producto", "ASOCIACION", "", "*", "0..*", "", "", "detalle")
+        );
+        XmiImportResponse request = new XmiImportResponse(classes, relations);
+        
+        byte[] output = new XmiExportService().exportar("TestDiagram", request);
+        Document document = parse(output);
+
+        List<Element> associationClasses = elementsByXmiType(document, "uml:AssociationClass");
+        assertEquals(1, associationClasses.size());
+        Element detalle = associationClasses.get(0);
+        assertEquals("Detalle", detalle.getAttribute("name"));
+        assertEquals(2, directChildren(detalle, "ownedEnd").size());
+        assertEquals(2, detalle.getAttribute("memberEnd").split(" ").length);
+        assertEquals(0, elementsByXmiType(document, "uml:Association").size());
+
+        MockMultipartFile xmi = new MockMultipartFile(
+            "archivo", "ventas.xmi", "application/xml", output
+        );
+        XmiImportResponse imported = new XmiImportService().importar(xmi);
+        assertEquals(3, imported.clases().size());
+        assertEquals(1, imported.relaciones().size());
+        XmiImportResponse.UmlRelation importedRelation = imported.relaciones().get(0);
+        assertTrue(importedRelation.claseAsociacion() != null
+            && !importedRelation.claseAsociacion().isBlank());
+        assertEquals(
+            "Detalle",
+            imported.clases().stream()
+                .filter(item -> item.id().equals(importedRelation.claseAsociacion()))
+                .findFirst().orElseThrow().nombre()
+        );
+        assertEquals("*", importedRelation.multiplicidadOrigen());
+        assertEquals("0..*", importedRelation.multiplicidadDestino());
+    }
+
+    @Test
+    void exportaAtributosEscalaresSinMetadataDeBag() throws Exception {
+        Document document = parseExportedSample();
+        Element cliente = classByName(document, "Cliente");
+        Element semanticAttribute = directChildren(cliente, "ownedAttribute").get(0);
+
+        assertEquals("true", semanticAttribute.getAttribute("isUnique"));
+        assertEquals("false", semanticAttribute.getAttribute("isOrdered"));
+        assertMultiplicity(semanticAttribute, "1", "1");
+
+        Element extension = (Element) document.getElementsByTagNameNS(
+            "http://schema.omg.org/spec/XMI/2.1", "Extension"
+        ).item(0);
+        Element extensionElement = directChildren(
+            directChildren(extension, "elements").get(0), "element"
+        ).stream().filter(item -> "Cliente".equals(item.getAttribute("name"))).findFirst().orElseThrow();
+        Element extensionAttribute = directChildren(
+            directChildren(extensionElement, "attributes").get(0), "attribute"
+        ).get(0);
+        Element properties = directChildren(extensionAttribute, "properties").get(0);
+        Element bounds = directChildren(extensionAttribute, "bounds").get(0);
+        assertEquals("false", properties.getAttribute("collection"));
+        assertEquals("0", properties.getAttribute("duplicates"));
+        assertEquals("1", bounds.getAttribute("lower"));
+        assertEquals("1", bounds.getAttribute("upper"));
+    }
+
 
     private XmiExportService exportService;
 
@@ -338,7 +408,7 @@ class XmiExportServiceTests {
     void rechazaRelacionConExtremoInexistente() {
         XmiImportResponse invalidModel = new XmiImportResponse(
             List.of(umlClass("cliente", "Cliente", 0, 0, List.of(), List.of())),
-            List.of(relation("r1", "cliente", "ausente", "ASOCIACION", "", "", ""))
+            List.of(relation("r1", "cliente", "ausente", "ASOCIACION", "", "", "", ""))
         );
 
         XmiExportException exception = assertThrows(
@@ -382,8 +452,8 @@ class XmiExportServiceTests {
         List<XmiImportResponse.UmlRelation> relations = List.of(
             relation("r1", "cliente", "pedido", "ASOCIACION", "realiza", "1", "0..*"),
             relation("r2", "pedido", "detalle", "COMPOSICION", "contiene", "1", "1..*"),
-            relation("r3", "especial", "cliente", "HERENCIA", "", "", ""),
-            relation("r4", "cliente", "detalle", "DEPENDENCIA", "usa", "", "")
+            relation("r3", "especial", "cliente", "HERENCIA", "", "", "", ""),
+            relation("r4", "cliente", "detalle", "DEPENDENCIA", "usa", "", "", "")
         );
         return new XmiImportResponse(classes, relations);
     }
@@ -409,7 +479,8 @@ class XmiExportServiceTests {
             String type,
             String name,
             String sourceMultiplicity,
-            String targetMultiplicity) {
+            String targetMultiplicity,
+            String... extra) {
         return new XmiImportResponse.UmlRelation(
             id,
             source,
@@ -417,7 +488,10 @@ class XmiExportServiceTests {
             type,
             name,
             sourceMultiplicity,
-            targetMultiplicity
+            targetMultiplicity,
+            "",
+            "",
+            ""
         );
     }
 
@@ -511,5 +585,58 @@ class XmiExportServiceTests {
             .filter(umlClass -> umlClass.nombre().equals(name))
             .findFirst()
             .orElseThrow();
+    }
+
+    @Test
+    void verificaEstructuraXmlDeAssociationClass() throws Exception {
+        XmiImportResponse.UmlClass claseVenta = umlClass("venta", "Venta", 100, 100, List.of(), List.of());
+        XmiImportResponse.UmlClass claseProducto = umlClass("producto", "Producto", 300, 100, List.of(), List.of());
+        XmiImportResponse.UmlClass claseDetalle = umlClass("detalle", "Detalle", 200, 200, List.of(), List.of());
+        
+        XmiImportResponse.UmlRelation relacionMn = new XmiImportResponse.UmlRelation(
+            "r_venta_producto", "venta", "producto", "ASOCIACION", "tiene", "1..*", "1..*", "ventas", "productos", "detalle"
+        );
+        
+        XmiImportResponse modelo = new XmiImportResponse(
+            List.of(claseVenta, claseProducto, claseDetalle),
+            List.of(relacionMn)
+        );
+        
+        Document doc = parse(exportService.exportar("TestAssociationClass", modelo));
+        
+        // Verificar que existe el elemento uml:AssociationClass
+        List<Element> assocClasses = elementsByXmiType(doc, "uml:AssociationClass");
+        assertEquals(1, assocClasses.size(), "Debe existir un uml:AssociationClass");
+        Element assocClass = assocClasses.get(0);
+        assertEquals("Detalle", assocClass.getAttribute("name"));
+        
+        // Verificar properties y extendedProperties en la extensión EA
+        NodeList elements = doc.getElementsByTagName("element");
+        boolean foundClassExt = false;
+        for (int i = 0; i < elements.getLength(); i++) {
+            Element el = (Element) elements.item(i);
+            if ("Detalle".equals(el.getAttribute("name"))) {
+                Element props = directChildren(el, "properties").get(0);
+                assertEquals("AssociationClass", props.getAttribute("sType"));
+                
+                List<Element> extPropsList = directChildren(el, "extendedProperties");
+                assertEquals(1, extPropsList.size());
+                String assocClassId = extPropsList.get(0).getAttribute("associationclass");
+                assertFalse(assocClassId.isBlank(), "Debe tener el atributo associationclass");
+                foundClassExt = true;
+            }
+        }
+        assertTrue(foundClassExt, "Debe existir la extensión element para la clase de asociación");
+        
+        NodeList connectors = doc.getElementsByTagName("connector");
+        assertEquals(1, connectors.getLength());
+        Element connector = (Element) connectors.item(0);
+        Element props = directChildren(connector, "properties").get(0);
+        assertEquals("AssociationClass", props.getAttribute("ea_type"));
+        
+        List<Element> extPropsList = directChildren(connector, "extendedProperties");
+        assertEquals(1, extPropsList.size());
+        String assocClassId = extPropsList.get(0).getAttribute("associationclass");
+        assertFalse(assocClassId.isBlank(), "El conector debe apuntar a la AssociationClass");
     }
 }

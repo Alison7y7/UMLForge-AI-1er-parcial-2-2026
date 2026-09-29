@@ -73,8 +73,14 @@ public class XmiExportService {
             Map<String, String> classIds = new LinkedHashMap<>();
             Map<String, String> classNames = new HashMap<>();
             Map<String, Element> classElements = new HashMap<>();
+            Map<String, XmiImportResponse.UmlRelation> associationClasses = new HashMap<>();
+            for (XmiImportResponse.UmlRelation relation : modelo.relaciones()) {
+                if (relation.claseAsociacion() != null && !relation.claseAsociacion().isBlank()) {
+                    associationClasses.put(relation.claseAsociacion(), relation);
+                }
+            }
             for (XmiImportResponse.UmlClass umlClass : modelo.clases()) {
-                String xmiId = stableId("CLASS", umlClass.id());
+                String xmiId = preservedOrStableId("CLASS", umlClass.id());
                 classIds.put(umlClass.id(), xmiId);
                 classNames.putIfAbsent(umlClass.nombre(), xmiId);
             }
@@ -83,7 +89,7 @@ public class XmiExportService {
                 String xmiId = classIds.get(umlClass.id());
                 Element classElement = packagedElement(
                     document,
-                    "uml:Class",
+                    associationClasses.containsKey(umlClass.id()) ? "uml:AssociationClass" : "uml:Class",
                     xmiId,
                     normalizedName(umlClass.nombre(), "Clase")
                 );
@@ -127,7 +133,7 @@ public class XmiExportService {
 
     public String nombreArchivo(String nombre) {
         String base = normalizedName(nombre, "diagrama-uml")
-            .replaceAll("[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ_-]+", "-")
+            .replaceAll("[^a-zA-Z0-9Ã¡Ã©Ã­Ã³ÃºÃÃ‰ÃÃ“ÃšÃ±Ã‘_-]+", "-")
             .replaceAll("^-+|-+$", "");
         return (base.isBlank() ? "diagrama-uml" : base) + ".xmi";
     }
@@ -153,6 +159,11 @@ public class XmiExportService {
             if (relation == null || relation.id() == null || relation.id().isBlank()
                     || !relationIds.add(relation.id())
                     || !classIds.contains(relation.origen()) || !classIds.contains(relation.destino())) {
+                throw invalidModel();
+            }
+            if (relation.claseAsociacion() != null && !relation.claseAsociacion().isBlank()
+                    && (!classIds.contains(relation.claseAsociacion())
+                        || !ASSOCIATION_TYPES.contains(normalizedRelationType(relation.tipo())))) {
                 throw invalidModel();
             }
             String type = normalizedRelationType(relation.tipo());
@@ -186,7 +197,12 @@ public class XmiExportService {
             ));
             ownedAttribute.setAttribute("name", normalizedName(attribute.nombre(), "atributo" + (index + 1)));
             ownedAttribute.setAttribute("visibility", normalizedVisibility(attribute.visibilidad(), "private"));
+            ownedAttribute.setAttribute("isStatic", "false");
+            ownedAttribute.setAttribute("isReadOnly", "false");
+            ownedAttribute.setAttribute("isUnique", "true");
+            ownedAttribute.setAttribute("isOrdered", "false");
             appendType(document, ownedAttribute, attribute.tipo(), "String", classNames);
+            appendMultiplicity(document, ownedAttribute, "1");
             classElement.appendChild(ownedAttribute);
         }
     }
@@ -245,18 +261,25 @@ public class XmiExportService {
 
         for (XmiImportResponse.UmlRelation relation : relations) {
             String type = normalizedRelationType(relation.tipo());
-            String relationId = stableId("RELATION", relation.id());
+            String relationId = preservedOrStableId("RELATION", relation.id());
+            boolean isAssociationClass = relation.claseAsociacion() != null
+                && !relation.claseAsociacion().isBlank();
+            if (isAssociationClass) {
+                relationId = classIds.get(relation.claseAsociacion());
+            }
             relationIds.put(relation.id(), relationId);
             String sourceId = classIds.get(relation.origen());
             String targetId = classIds.get(relation.destino());
 
             if (ASSOCIATION_TYPES.contains(type)) {
-                Element association = packagedElement(
-                    document,
-                    "uml:Association",
-                    relationId,
-                    relation.nombre() == null ? "" : relation.nombre().trim()
-                );
+                Element association = isAssociationClass
+                    ? classElements.get(relation.claseAsociacion())
+                    : packagedElement(
+                        document,
+                        "uml:Association",
+                        relationId,
+                        relation.nombre() == null ? "" : relation.nombre().trim()
+                    );
                 String sourceEndId = stableId("END_SOURCE", relation.id());
                 String targetEndId = stableId("END_TARGET", relation.id());
                 association.setAttribute("memberEnd", sourceEndId + " " + targetEndId);
@@ -264,7 +287,8 @@ public class XmiExportService {
                     document,
                     sourceEndId,
                     sourceId,
-                    relationId,
+                    isAssociationClass ? classIds.get(relation.claseAsociacion()) : relationId,
+                    relation.rolOrigen(),
                     "",
                     relation.multiplicidadOrigen()
                 ));
@@ -272,7 +296,8 @@ public class XmiExportService {
                     document,
                     targetEndId,
                     targetId,
-                    relationId,
+                    isAssociationClass ? classIds.get(relation.claseAsociacion()) : relationId,
+                    relation.rolDestino(),
                     switch (type) {
                         case "AGREGACION" -> "shared";
                         case "COMPOSICION" -> "composite";
@@ -280,7 +305,7 @@ public class XmiExportService {
                     },
                     relation.multiplicidadDestino()
                 ));
-                umlPackage.appendChild(association);
+                if (!isAssociationClass) umlPackage.appendChild(association);
             } else if ("HERENCIA".equals(type) || "GENERALIZACION".equals(type)) {
                 Element generalization = document.createElement("generalization");
                 setXmiAttribute(generalization, "type", "uml:Generalization");
@@ -307,6 +332,7 @@ public class XmiExportService {
             String endId,
             String classId,
             String associationId,
+            String role,
             String aggregation,
             String multiplicity) {
         Element end = document.createElement("ownedEnd");
@@ -314,6 +340,7 @@ public class XmiExportService {
         setXmiAttribute(end, "id", endId);
         end.setAttribute("type", classId);
         end.setAttribute("association", associationId);
+        if (role != null && !role.isBlank()) end.setAttribute("name", role.trim());
         if (!aggregation.isBlank()) end.setAttribute("aggregation", aggregation);
         appendMultiplicity(document, end, multiplicity);
         return end;
@@ -391,7 +418,9 @@ public class XmiExportService {
 
             Element element = document.createElement("element");
             setXmiAttribute(element, "idref", classIds.get(umlClass.id()));
-            setXmiAttribute(element, "type", "uml:Class");
+            boolean isAssocClass = modelo.relaciones().stream()
+                .anyMatch(relation -> umlClass.id().equals(relation.claseAsociacion()));
+            setXmiAttribute(element, "type", isAssocClass ? "uml:AssociationClass" : "uml:Class");
             element.setAttribute("name", normalizedName(umlClass.nombre(), "Clase"));
             element.setAttribute("scope", "public");
 
@@ -404,7 +433,7 @@ public class XmiExportService {
 
             Element properties = document.createElement("properties");
             properties.setAttribute("isSpecification", "false");
-            properties.setAttribute("sType", "Class");
+            properties.setAttribute("sType", isAssocClass ? "AssociationClass" : "Class");
             properties.setAttribute("nType", "0");
             properties.setAttribute("scope", "public");
             properties.setAttribute("isRoot", "false");
@@ -414,6 +443,18 @@ public class XmiExportService {
                 properties.setAttribute("stereotype", umlClass.estereotipo().trim());
             }
             element.appendChild(properties);
+
+            if (isAssocClass) {
+                XmiImportResponse.UmlRelation association = modelo.relaciones().stream()
+                    .filter(relation -> umlClass.id().equals(relation.claseAsociacion()))
+                    .findFirst()
+                    .orElseThrow();
+                Element extendedProperties = document.createElement("extendedProperties");
+                extendedProperties.setAttribute("associationclass", relationIds.get(association.id()));
+                element.appendChild(extendedProperties);
+            }
+
+            appendEaAttributes(document, element, umlClass);
 
             elements.appendChild(element);
         }
@@ -433,6 +474,7 @@ public class XmiExportService {
                 classLocalIds.get(relation.origen()),
                 className(modelo, relation.origen()),
                 safeText(relation.multiplicidadOrigen()),
+                safeText(relation.rolOrigen()),
                 "none",
                 false
             ));
@@ -443,6 +485,7 @@ public class XmiExportService {
                 classLocalIds.get(relation.destino()),
                 className(modelo, relation.destino()),
                 safeText(relation.multiplicidadDestino()),
+                safeText(relation.rolDestino()),
                 switch (type) {
                 case "AGREGACION" -> "shared";
                 case "COMPOSICION" -> "composite";
@@ -457,7 +500,8 @@ public class XmiExportService {
 
             Element properties = document.createElement("properties");
             properties.setAttribute("name", safeText(relation.nombre()));
-            properties.setAttribute("ea_type", eaRelationType(type));
+            boolean isAssocRel = relation.claseAsociacion() != null && !relation.claseAsociacion().isBlank() && classIds.containsKey(relation.claseAsociacion());
+            properties.setAttribute("ea_type", isAssocRel ? "AssociationClass" : eaRelationType(type));
             properties.setAttribute("direction", "Source -> Destination");
             connector.appendChild(properties);
 
@@ -475,7 +519,11 @@ public class XmiExportService {
             Element labels = document.createElement("labels");
             labels.setAttribute("mt", safeText(relation.nombre()));
             connector.appendChild(labels);
-            connector.appendChild(document.createElement("extendedProperties"));
+            Element extProps = document.createElement("extendedProperties");
+            if (relation.claseAsociacion() != null && !relation.claseAsociacion().isBlank() && classIds.containsKey(relation.claseAsociacion())) {
+                extProps.setAttribute("associationclass", classIds.get(relation.claseAsociacion()));
+            }
+            connector.appendChild(extProps);
             connector.appendChild(document.createElement("style"));
             connector.appendChild(document.createElement("xrefs"));
             connector.appendChild(document.createElement("tags"));
@@ -529,6 +577,7 @@ public class XmiExportService {
             int localId,
             String className,
             String multiplicity,
+            String roleName,
             String aggregation,
             boolean navigable) {
         Element end = document.createElement(elementName);
@@ -543,6 +592,7 @@ public class XmiExportService {
         Element role = document.createElement("role");
         role.setAttribute("visibility", "Public");
         role.setAttribute("targetScope", "instance");
+        if (!roleName.isBlank()) role.setAttribute("name", roleName);
         end.appendChild(role);
 
         Element type = document.createElement("type");
@@ -569,6 +619,44 @@ public class XmiExportService {
         end.appendChild(document.createElement("xrefs"));
         end.appendChild(document.createElement("tags"));
         return end;
+    }
+
+    private void appendEaAttributes(
+            Document document,
+            Element element,
+            XmiImportResponse.UmlClass umlClass) {
+        if (umlClass.atributos().isEmpty()) return;
+
+        Element attributes = document.createElement("attributes");
+        for (int index = 0; index < umlClass.atributos().size(); index++) {
+            XmiImportResponse.UmlAttribute umlAttribute = umlClass.atributos().get(index);
+            Element attribute = document.createElement("attribute");
+            setXmiAttribute(attribute, "idref", stableId(
+                "ATTRIBUTE",
+                umlClass.id() + ":" + index + ":" + safeText(umlAttribute.id())
+            ));
+            attribute.setAttribute("name", normalizedName(umlAttribute.nombre(), "atributo" + (index + 1)));
+            attribute.setAttribute("scope", normalizedVisibility(umlAttribute.visibilidad(), "private"));
+
+            Element properties = document.createElement("properties");
+            properties.setAttribute("type", normalizedName(umlAttribute.tipo(), "String"));
+            properties.setAttribute("collection", "false");
+            properties.setAttribute("static", "0");
+            properties.setAttribute("duplicates", "0");
+            properties.setAttribute("changeability", "changeable");
+            attribute.appendChild(properties);
+
+            Element coords = document.createElement("coords");
+            coords.setAttribute("ordered", "0");
+            attribute.appendChild(coords);
+
+            Element bounds = document.createElement("bounds");
+            bounds.setAttribute("lower", "1");
+            bounds.setAttribute("upper", "1");
+            attribute.appendChild(bounds);
+            attributes.appendChild(attribute);
+        }
+        element.appendChild(attributes);
     }
 
     private void appendEaDiagram(
@@ -615,12 +703,15 @@ public class XmiExportService {
             XmiImportResponse.UmlClass umlClass = modelo.clases().get(index);
             int left = (int) Math.round(umlClass.posicionX() - minX + 100);
             int top = (int) Math.round(umlClass.posicionY() - minY + 100);
-            int height = Math.max(120, 75 + (umlClass.atributos().size() + umlClass.metodos().size()) * 18);
+            int width = umlClass.ancho() != null && umlClass.ancho() > 0 ? (int) Math.round(umlClass.ancho()) : 240;
+            int height = umlClass.alto() != null && umlClass.alto() > 0
+                ? (int) Math.round(umlClass.alto())
+                : Math.max(120, 75 + (umlClass.atributos().size() + umlClass.metodos().size()) * 18);
 
             Element diagramElement = document.createElement("element");
             diagramElement.setAttribute(
                 "geometry",
-                "Left=" + left + ";Top=" + top + ";Right=" + (left + 240)
+                "Left=" + left + ";Top=" + top + ";Right=" + (left + width)
                     + ";Bottom=" + (top + height) + ";"
             );
             diagramElement.setAttribute("subject", classIds.get(umlClass.id()));
@@ -683,6 +774,12 @@ public class XmiExportService {
             (prefix + ":" + safeText(source)).getBytes(StandardCharsets.UTF_8)
         );
         return "EAID_" + uuid.toString().replace('-', '_').toUpperCase(Locale.ROOT);
+    }
+
+    private String preservedOrStableId(String prefix, String source) {
+        String candidate = safeText(source).trim();
+        if (candidate.matches("EAID_[0-9A-Fa-f_]{32,}")) return candidate;
+        return stableId(prefix, source);
     }
 
     private String stablePackageId(String source) {

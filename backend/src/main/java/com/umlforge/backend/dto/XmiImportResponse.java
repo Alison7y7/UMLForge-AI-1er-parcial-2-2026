@@ -12,9 +12,25 @@ public record XmiImportResponse(
         String estereotipo,
         double posicionX,
         double posicionY,
+        Double ancho,
+        Double alto,
         List<UmlAttribute> atributos,
         List<UmlMethod> metodos
-    ) {}
+    ) {
+        @com.fasterxml.jackson.annotation.JsonCreator
+        public UmlClass {}
+        
+        public UmlClass(
+                String id,
+                String nombre,
+                String estereotipo,
+                double posicionX,
+                double posicionY,
+                List<UmlAttribute> atributos,
+                List<UmlMethod> metodos) {
+            this(id, nombre, estereotipo, posicionX, posicionY, 0.0, 0.0, atributos, metodos);
+        }
+    }
 
     public record UmlAttribute(
         String id,
@@ -43,6 +59,9 @@ public record XmiImportResponse(
         String tipo,
         String nombre,
         String multiplicidadOrigen,
-        String multiplicidadDestino
+        String multiplicidadDestino,
+        String rolOrigen,
+        String rolDestino,
+        String claseAsociacion
     ) {}
 }

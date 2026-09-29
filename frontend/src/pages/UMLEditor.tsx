@@ -1,9 +1,9 @@
 // @ts-nocheck
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../api/axios';
 import { useEditorStore } from '../store/editorStore';
-import { ArrowLeft, Save, PlusSquare, Trash2, Settings2, MousePointer2, Square, ArrowRight, Diamond, Layers, Triangle, MoveRight } from 'lucide-react';
+import { ArrowLeft, Save, PlusSquare, Trash2, Settings2, MousePointer2, Square, ArrowRight, Diamond, Layers, Triangle, MoveRight, Menu, X, MoreVertical, Wrench, PanelRightOpen, PanelLeftOpen } from 'lucide-react';
 
 import {
   ReactFlow,
@@ -23,6 +23,7 @@ import XmiExportModal from '../components/xmi/XmiExportModal';
 import IAModelModal from '../components/ia/IAModelModal';
 import ImageUmlImportModal from '../components/ia/ImageUmlImportModal';
 import type { UmlModelJson } from '../types/uml';
+import { buildUmlModel, relationData } from '../utils/umlModelMapper';
 import { useCollaboration } from '../hooks/useCollaboration';
 
 const nodeTypes = { umlClass: UmlClassNode };
@@ -85,6 +86,35 @@ export default function UMLEditor() {
   const [selectedTool, setSelectedTool] = useState('select');
   const [pendingRelationSourceId, setPendingRelationSourceId] = useState<string | null>(null);
   const [relationError, setRelationError] = useState('');
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [menuMode, setMenuMode] = useState<'full' | 'compact'>('full');
+  const headerRef = useRef<HTMLElement>(null);
+  const leftRef = useRef<HTMLDivElement>(null);
+  const rightRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!headerRef.current) return;
+    const observer = new ResizeObserver(() => {
+      if (!headerRef.current || !leftRef.current || !rightRef.current) return;
+      const available = headerRef.current.offsetWidth;
+      const leftWidth = leftRef.current.offsetWidth;
+      
+      if (menuMode === 'full') {
+        const rightWidth = rightRef.current.scrollWidth;
+        if (leftWidth + rightWidth + 24 > available) {
+          setMenuMode('compact');
+        }
+      } else {
+        if (leftWidth + 900 + 24 <= available) {
+          setMenuMode('full');
+        }
+      }
+    });
+    observer.observe(headerRef.current);
+    return () => observer.disconnect();
+  }, [menuMode]);
+  const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(false);
+  const [isRightPanelOpen, setIsRightPanelOpen] = useState(false);
   
   const {
     nodes, edges, selectedNodeId, selectedEdgeId,
@@ -105,11 +135,44 @@ export default function UMLEditor() {
     if (n) broadcastEvent('NODE_UPDATED', nid, { ...n.data, ...data });
   };
 
-  const handleUpdateEdgeData = (eid: string, data: any) => {
-    setEdges(edges.map(e => e.id === eid ? { ...e, data: { ...e.data, ...data } } : e));
+    const handleUpdateEdgeData = (eid: string, data: any) => {
     const edge = edges.find(e => e.id === eid);
-    if (edge) broadcastEvent('EDGE_UPDATED', eid, { ...edge.data, ...data });
-  };
+    if (!edge) return;
+
+    const mergedData = { ...edge.data, ...data };
+    
+    // Detectar M:N
+    const isMN = (mult: string) => /^\*$|^[0-9]+\.\.\*$|^n$|^N$/.test((mult || '').trim());
+      
+      if (isMN(mergedData.multiplicidadOrigen) && isMN(mergedData.multiplicidadDestino)) {
+        if (!mergedData.claseAsociacion) {
+          const sourceNode = nodes.find(n => n.id === edge.source);
+          const targetNode = nodes.find(n => n.id === edge.target);
+          if (sourceNode && targetNode) {
+            const posX = (sourceNode.position.x + targetNode.position.x) / 2;
+            const posY = (sourceNode.position.y + targetNode.position.y) / 2 + 100;
+            const interId = generateId();
+            const interNode = {
+               id: interId,
+               type: 'umlClass',
+               position: { x: posX, y: posY },
+               data: {
+                 nombre: 'Detalle',
+                 atributos: [],
+                 metodos: []
+               }
+            };
+            mergedData.claseAsociacion = interId;
+            setNodes([...nodes, interNode as any]);
+            broadcastEvent('NODE_CREATED', interId, interNode);
+          }
+        }
+      }
+      
+      const newEdge = { ...edge, data: mergedData };
+      setEdges(edges.map(e => e.id === eid ? newEdge : e));
+      broadcastEvent('EDGE_UPDATED', eid, newEdge);
+    };
 
   useEffect(() => {
     const fetchDiagrama = async () => {
@@ -143,10 +206,7 @@ export default function UMLEditor() {
               target: r.destino.toString(),
               type: 'umlRelation',
               data: {
-                tipo: r.tipo,
-                nombre: r.nombre,
-                multiplicidadOrigen: r.multiplicidadOrigen,
-                multiplicidadDestino: r.multiplicidadDestino
+                ...relationData(r)
               },
               markerEnd: getMarkerEnd(r.tipo)
             }));
@@ -163,26 +223,7 @@ export default function UMLEditor() {
     fetchDiagrama();
   }, [id, setNodes, setEdges]);
 
-  const buildCurrentModel = (): UmlModelJson => ({
-    clases: nodes.map(n => ({
-      id: n.id,
-      nombre: n.data.nombre as string,
-      estereotipo: n.data.estereotipo as string | undefined,
-      posicionX: n.position.x,
-      posicionY: n.position.y,
-      atributos: n.data.atributos as any[] || [],
-      metodos: n.data.metodos as any[] || []
-    })),
-    relaciones: edges.map(e => ({
-      id: e.id,
-      origen: e.source,
-      destino: e.target,
-      tipo: e.data?.tipo as string || 'ASOCIACION',
-      nombre: e.data?.nombre as string || '',
-      multiplicidadOrigen: e.data?.multiplicidadOrigen as string || '',
-      multiplicidadDestino: e.data?.multiplicidadDestino as string || ''
-    }))
-  });
+  const buildCurrentModel = (): UmlModelJson => buildUmlModel(nodes as any, edges as any);
 
   const handleSave = async () => {
     try {
@@ -328,10 +369,7 @@ export default function UMLEditor() {
       return;
     }
 
-    if (pendingRelationSourceId === node.id) {
-      setRelationError('No puedes relacionar una clase consigo misma.');
-      return;
-    }
+    // Autorrelaciones permitidas
 
     const newEdge: Edge = {
       id: generateId(),
@@ -342,8 +380,10 @@ export default function UMLEditor() {
         tipo: selectedTool,
         nombre: '',
         multiplicidadOrigen: '',
-        multiplicidadDestino: ''
-      },
+        multiplicidadDestino: '',
+          rolOrigen: '',
+          rolDestino: ''
+        },
       markerEnd: getMarkerEnd(selectedTool)
     };
 
@@ -362,9 +402,14 @@ export default function UMLEditor() {
       id: umlClass.id.toString(),
       type: 'umlClass',
       position: { x: umlClass.posicionX, y: umlClass.posicionY },
+      style: umlClass.ancho && umlClass.alto
+        ? { width: umlClass.ancho, height: umlClass.alto }
+        : undefined,
       data: {
         nombre: umlClass.nombre,
         estereotipo: umlClass.estereotipo || '',
+        ancho: umlClass.ancho,
+        alto: umlClass.alto,
         atributos: umlClass.atributos || [],
         metodos: umlClass.metodos || []
       }
@@ -375,10 +420,7 @@ export default function UMLEditor() {
       target: relation.destino.toString(),
       type: 'umlRelation',
       data: {
-        tipo: relation.tipo,
-        nombre: relation.nombre || '',
-        multiplicidadOrigen: relation.multiplicidadOrigen || '',
-        multiplicidadDestino: relation.multiplicidadDestino || ''
+        ...relationData(relation)
       },
       markerEnd: getMarkerEnd(relation.tipo)
     }));
@@ -456,28 +498,36 @@ export default function UMLEditor() {
     <div className="h-screen flex flex-col overflow-hidden bg-bg-main font-sans">
       
       {/* TOP BAR */}
-      <header className="h-14 bg-white/95 backdrop-blur-md border-b border-lila-light/50 flex items-center justify-between gap-3 px-3 lg:px-6 z-50 shadow-sm shrink-0 overflow-x-auto">
-        <div className="flex items-center gap-4 shrink-0">
+      <header ref={headerRef} className="h-14 bg-white/95 backdrop-blur-md border-b border-lila-light/50 flex items-center justify-between gap-3 px-3 lg:px-6 z-50 shadow-sm shrink-0 w-full relative">
+        <div ref={leftRef} className="flex items-center gap-2 md:gap-4 shrink-0">
+          <button 
+            onClick={() => setIsLeftPanelOpen(!isLeftPanelOpen)}
+            className="lg:hidden p-1.5 hover:bg-lila-light/30 rounded-lg text-text-light hover:text-lila-main transition-colors"
+            title="Herramientas"
+          >
+            <Wrench className="w-5 h-5" />
+          </button>
+          
           <button 
             onClick={() => navigate(proyectoId ? `/proyectos/${proyectoId}` : '/dashboard')}
-            className="p-1.5 hover:bg-lila-light/30 rounded-lg text-text-light hover:text-lila-main transition-colors"
+            className="hidden md:block p-1.5 hover:bg-lila-light/30 rounded-lg text-text-light hover:text-lila-main transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
           
-          <div className="h-4 w-px bg-gray-200"></div>
+          <div className="hidden md:block h-4 w-px bg-gray-200"></div>
           
           <input 
             value={nombreDiagrama}
             onChange={(e) => setNombreDiagrama(e.target.value)}
-            className="font-bold text-gray-800 bg-transparent border-none focus:outline-none focus:ring-2 focus:ring-lila-light/50 rounded px-2 py-1 max-w-[200px]"
-            placeholder="Nombre del diagrama"
+            className="font-bold text-gray-800 bg-transparent border-none focus:outline-none focus:ring-2 focus:ring-lila-light/50 rounded px-1 md:px-2 py-1 max-w-[120px] md:max-w-[200px]"
+            placeholder="Nombre"
           />
-          <span className="text-xs text-gray-400 font-medium px-2 py-0.5 bg-gray-100 rounded-full">Guardado manual</span>
+          <span className="hidden md:inline text-xs text-gray-400 font-medium px-2 py-0.5 bg-gray-100 rounded-full">Guardado manual</span>
         </div>
 
-        <div className="flex items-center gap-4 shrink-0">
-          <div className="flex items-center gap-2 border-r border-gray-200 pr-4">
+        <div ref={rightRef} className="flex items-center gap-2 md:gap-4 shrink-0">
+          <div className={`hidden md:flex items-center gap-2 border-r border-gray-200 pr-4 ${menuMode === 'compact' ? '!hidden' : ''}`}>
             <span className={`flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider ${connectionStatus === 'Sin conexión' ? 'text-red-500' : connectionStatus === 'Sincronizado' ? 'text-green-500' : 'text-yellow-500'}`}>
               <div className={`w-2 h-2 rounded-full ${connectionStatus === 'Sin conexión' ? 'bg-red-500' : connectionStatus === 'Sincronizado' ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
               {connectionStatus === 'Sincronizado'
@@ -496,7 +546,8 @@ export default function UMLEditor() {
               </div>
             )}
           </div>
-          <div className="flex items-center gap-1">
+          
+          <div className={`hidden md:flex items-center gap-1 ${menuMode === 'compact' ? '!hidden' : ''}`}>
             <button onClick={() => setShowHistory(true)} className="px-3 py-1.5 text-xs font-bold text-lila-main bg-lila-light/10 hover:bg-lila-light/20 rounded-lg transition-colors">Actividad</button>
             <button onClick={() => setShowIaModal(true)} className="px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded transition-colors">Asistente IA</button>
             <button onClick={() => setShowImageModal(true)} className="px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded transition-colors">Imagen</button>
@@ -506,24 +557,60 @@ export default function UMLEditor() {
               {isGeneratingBackend ? 'Generando backend...' : 'Generar backend'}
             </button>
             <button onClick={() => setShowGenerateMobileModal(true)} disabled={isGeneratingMobile} className="px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded transition-colors disabled:opacity-50">
-              {isGeneratingMobile ? 'Generando móvil...' : 'Generar App Móvil'}
-            </button>
-            
-            <button 
-              onClick={handleSave}
-              className="ml-2 px-4 py-2 bg-gradient-to-r from-lila-main to-pink-main text-white text-sm font-bold rounded-xl hover:opacity-90 transition-opacity flex items-center gap-2 shadow-sm"
-            >
-              <Save className="w-4 h-4" />
-              Guardar
+              {isGeneratingMobile ? 'Generando app...' : 'Generar App Móvil'}
             </button>
           </div>
+
+          <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className={`p-1.5 rounded-lg hover:bg-gray-100 text-gray-600 ${menuMode === 'full' ? 'hidden' : 'block'}`}>
+             <MoreVertical className="w-5 h-5" />
+          </button>
+
+          <button 
+            onClick={() => setIsRightPanelOpen(!isRightPanelOpen)}
+            className="lg:hidden p-1.5 hover:bg-lila-light/30 rounded-lg text-text-light hover:text-lila-main transition-colors"
+            title="Inspector"
+          >
+            <PanelRightOpen className="w-5 h-5" />
+          </button>
+          
+          <button 
+            onClick={handleSave}
+            className="ml-1 md:ml-2 px-3 py-1.5 md:px-4 md:py-2 bg-gradient-to-r from-lila-main to-pink-main text-white text-xs md:text-sm font-bold rounded-xl hover:opacity-90 transition-opacity flex items-center gap-1 md:gap-2 shadow-sm"
+          >
+            <Save className="w-4 h-4" />
+            <span className="hidden md:inline">Guardar</span>
+          </button>
         </div>
+
+        {/* MOBILE MENU DROPDOWN */}
+        {isMobileMenuOpen && (
+           <div className={`absolute top-16 right-4 w-56 bg-white shadow-xl border border-gray-100 rounded-xl p-2 z-50 flex flex-col gap-1 ${menuMode === 'full' ? 'hidden' : 'flex'}`}>
+             <div className="px-3 py-2 border-b border-gray-100 text-xs font-bold text-gray-500 mb-1 flex items-center gap-2">
+                <div className={`w-2 h-2 rounded-full ${connectionStatus === 'Sin conexión' ? 'bg-red-500' : connectionStatus === 'Sincronizado' ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+                {connectionStatus === 'Sincronizado' ? `En línea · ${connectedUsers.length}` : connectionStatus}
+             </div>
+             <button onClick={() => { setIsMobileMenuOpen(false); setShowHistory(true); }} className="px-3 py-2 text-left text-sm font-semibold text-gray-700 hover:bg-gray-50 rounded-lg">Actividad</button>
+             <button onClick={() => { setIsMobileMenuOpen(false); setShowIaModal(true); }} className="px-3 py-2 text-left text-sm font-semibold text-gray-700 hover:bg-gray-50 rounded-lg">Asistente IA</button>
+             <button onClick={() => { setIsMobileMenuOpen(false); setShowImageModal(true); }} className="px-3 py-2 text-left text-sm font-semibold text-gray-700 hover:bg-gray-50 rounded-lg">Importar de Imagen</button>
+             <button onClick={() => { setIsMobileMenuOpen(false); setShowXmiImport(true); }} className="px-3 py-2 text-left text-sm font-semibold text-gray-700 hover:bg-gray-50 rounded-lg">Importar XMI</button>
+             <button onClick={() => { setIsMobileMenuOpen(false); setShowXmiExport(true); }} className="px-3 py-2 text-left text-sm font-semibold text-gray-700 hover:bg-gray-50 rounded-lg">Exportar XMI</button>
+             <div className="h-px bg-gray-100 my-1"></div>
+             <button onClick={() => { setIsMobileMenuOpen(false); setShowGenerateBackendModal(true); }} className="px-3 py-2 text-left text-sm font-semibold text-lila-main hover:bg-lila-50 rounded-lg">Generar Backend</button>
+             <button onClick={() => { setIsMobileMenuOpen(false); setShowGenerateMobileModal(true); }} className="px-3 py-2 text-left text-sm font-semibold text-blue-600 hover:bg-blue-50 rounded-lg">Generar App Móvil</button>
+             <div className="h-px bg-gray-100 my-1"></div>
+             <button onClick={() => { setIsMobileMenuOpen(false); navigate(proyectoId ? `/proyectos/${proyectoId}` : '/dashboard'); }} className="px-3 py-2 text-left text-sm font-semibold text-gray-500 hover:bg-gray-50 rounded-lg">Volver atrás</button>
+           </div>
+        )}
       </header>
 
       {/* WORKSPACE */}
       <div className="flex-1 flex overflow-hidden relative min-w-0 min-h-0">
         {/* SIDEBAR HERRAMIENTAS */}
-        <aside className="w-14 lg:w-48 bg-white/95 backdrop-blur-md border-r border-lila-light/50 flex flex-col py-4 z-40 shadow-[4px_0_24px_rgba(139,92,246,0.03)] overflow-y-auto shrink-0">
+        <aside className={`
+          fixed inset-y-0 left-0 z-50 w-14 lg:w-48 bg-white/95 backdrop-blur-md border-r border-lila-light/50 flex flex-col py-4 shadow-[4px_0_24px_rgba(139,92,246,0.03)] overflow-y-auto h-full transition-transform duration-300 ease-in-out
+          ${isLeftPanelOpen ? 'translate-x-0' : '-translate-x-full'}
+          lg:relative lg:translate-x-0 shrink-0
+        `}>
           <div className="hidden lg:block px-4 mb-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Herramientas</div>
           <button 
             onClick={() => handleToolChange('select')}
@@ -577,6 +664,10 @@ export default function UMLEditor() {
             <MoveRight className="w-4 h-4 shrink-0" /> <span className="hidden lg:inline">Dependencia</span>
           </button>
         </aside>
+        
+        {isLeftPanelOpen && (
+          <div className="fixed inset-0 bg-gray-900/20 backdrop-blur-sm z-40 lg:hidden" onClick={() => setIsLeftPanelOpen(false)}></div>
+        )}
 
         {/* LIENZO REACT FLOW */}
         <main className="flex-1 relative bg-[#FAFAFC] min-w-0 min-h-0">
@@ -589,7 +680,7 @@ export default function UMLEditor() {
             onEdgesChange={onEdgesChange}
             onConnect={(conn) => {
               if (selectedTool === 'select' || selectedTool === 'umlClass') return;
-              const newEdge = { ...conn, id: generateId(), type: 'umlRelation', data: { tipo: selectedTool, nombre: '', multiplicidadOrigen: '', multiplicidadDestino: '' }, markerEnd: getMarkerEnd(selectedTool) };
+              const newEdge = { ...conn, id: generateId(), type: 'umlRelation', data: { tipo: selectedTool, nombre: '', multiplicidadOrigen: '', multiplicidadDestino: '', rolOrigen: '', rolDestino: '' }, markerEnd: getMarkerEnd(selectedTool) };
               setEdges([...edges, newEdge as any]);
               broadcastEvent('EDGE_CREATED', newEdge.id, newEdge);
             }}
@@ -634,6 +725,24 @@ export default function UMLEditor() {
             defaultEdgeOptions={{ type: 'umlRelation', markerEnd: { type: MarkerType.ArrowClosed, color: '#8B5CF6' } }}
             className="bg-bg-main"
           >
+            
+            <svg style={{ position: 'absolute', top: 0, left: 0, width: 0, height: 0 }}>
+              <defs>
+                <marker id="agregacion-marker" markerWidth="20" markerHeight="20" refX="20" refY="10" orient="auto">
+                  <polygon points="10,0 20,10 10,20 0,10" fill="white" stroke="#8B5CF6" strokeWidth="1" />
+                </marker>
+                <marker id="composicion-marker" markerWidth="20" markerHeight="20" refX="20" refY="10" orient="auto">
+                  <polygon points="10,0 20,10 10,20 0,10" fill="#8B5CF6" stroke="#8B5CF6" strokeWidth="1" />
+                </marker>
+                <marker id="generalizacion-marker" markerWidth="20" markerHeight="20" refX="20" refY="10" orient="auto">
+                  <polygon points="0,0 20,10 0,20" fill="white" stroke="#8B5CF6" strokeWidth="1" />
+                </marker>
+                <marker id="dependencia-marker" markerWidth="20" markerHeight="20" refX="20" refY="10" orient="auto">
+                  <path d="M0,0 L20,10 L0,20" fill="none" stroke="#8B5CF6" strokeWidth="1" />
+                </marker>
+              </defs>
+            </svg>
+
             <Background color="#8B5CF6" gap={24} size={1} />
             <Controls className="fill-lila-main" />
             <MiniMap nodeColor="#FCE7F3" maskColor="rgba(250, 250, 252, 0.7)" />
@@ -649,7 +758,11 @@ export default function UMLEditor() {
         </main>
 
         {/* PANEL DERECHO */}
-        <aside className="absolute inset-y-0 right-0 w-80 max-w-[calc(100%_-_3.5rem)] lg:static lg:max-w-none bg-white/95 backdrop-blur-md border-l border-lila-light/50 shadow-[-4px_0_24px_rgba(139,92,246,0.03)] flex flex-col z-40 overflow-hidden shrink-0">
+        <aside className={`
+          fixed inset-y-0 right-0 z-50 w-80 max-w-[calc(100%-3.5rem)] lg:max-w-none bg-white/95 backdrop-blur-md border-l border-lila-light/50 shadow-[-4px_0_24px_rgba(139,92,246,0.03)] flex flex-col overflow-hidden h-full transition-transform duration-300 ease-in-out
+          ${isRightPanelOpen ? 'translate-x-0' : 'translate-x-full'}
+          lg:relative lg:translate-x-0 shrink-0
+        `}>
           <div className="flex border-b border-lila-light/50 bg-gray-50/50">
             <button 
               className={`flex-1 py-4 text-xs font-bold tracking-wider uppercase transition-colors ${rightTab === 'inspector' ? 'text-lila-main border-b-2 border-lila-main bg-white' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'}`}
@@ -889,7 +1002,7 @@ export default function UMLEditor() {
                     <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Mult. Origen</label>
                     <input 
                       className="w-full px-2 py-1.5 bg-bg-main border border-gray-200 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-lila-main"
-                      placeholder="ej: 1"
+                      list="multiplicities" placeholder="ej: 1"
                       value={selectedEdge.data?.multiplicidadOrigen as string || ''}
                       onChange={(e) => {
                          handleUpdateEdgeData(selectedEdge.id, { multiplicidadOrigen: e.target.value });
@@ -900,7 +1013,7 @@ export default function UMLEditor() {
                     <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Mult. Destino</label>
                     <input 
                       className="w-full px-2 py-1.5 bg-bg-main border border-gray-200 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-lila-main"
-                      placeholder="ej: 0..*"
+                      list="multiplicities" placeholder="ej: 0..*"
                       value={selectedEdge.data?.multiplicidadDestino as string || ''}
                       onChange={(e) => {
                          handleUpdateEdgeData(selectedEdge.id, { multiplicidadDestino: e.target.value });
@@ -989,9 +1102,25 @@ export default function UMLEditor() {
             )}
           </div>
         </aside>
+        
+        {isRightPanelOpen && (
+          <div className="fixed inset-0 bg-gray-900/20 backdrop-blur-sm z-40 lg:hidden" onClick={() => setIsRightPanelOpen(false)}></div>
+        )}
       </div>
       
-      {/* MODAL HISTORIAL */}
+      
+      {/* DATALIST PARA MULTIPLICIDADES */}
+      <datalist id="multiplicities">
+        <option value="1" />
+        <option value="0..1" />
+        <option value="1..*" />
+        <option value="0..*" />
+        <option value="*" />
+        <option value="0" />
+        <option value="N" />
+      </datalist>
+
+        {/* MODAL HISTORIAL */}
       {showHistory && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[80vh]">

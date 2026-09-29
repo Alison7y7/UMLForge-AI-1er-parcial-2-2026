@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<xmi:XMI xmlns:xmi="http://schema.omg.org/spec/XMI/2.1" xmlns:uml="http://schema.omg.org/spec/UML/2.1" xmi:version="2.1">
+  <xmi:Documentation exporter="Enterprise Architect" exporterID="1554" exporterVersion="6.5"/>
+  <uml:Model name="TestDiagram" xmi:id="EAID_17287044_AF79_3499_B121_4AA23A2FFF2D">
+    <packagedElement name="TestDiagram" xmi:id="EAPK_950618DB_DD22_31BA_9754_5F18759183B5" xmi:type="uml:Package">
+      <packagedElement name="Venta" visibility="public" xmi:id="EAID_B04A01DE_7267_38DD_9427_D9CAD3841373" xmi:type="uml:Class">
+        <ownedAttribute isOrdered="false" isReadOnly="false" isStatic="false" isUnique="true" name="id" visibility="private" xmi:id="EAID_95F8DE55_B94E_3484_A559_73C16A04C75C" xmi:type="uml:Property">
+          <type href="http://www.sparxsystems.com/profiles/UML2.1/PrimitiveTypes.xmi#int" xmi:type="uml:PrimitiveType"/>
+          <lowerValue value="1" xmi:id="EAID_6EADECDB_A20C_39F7_8EF3_2E00C1A4A830" xmi:type="uml:LiteralInteger"/>
+          <upperValue value="1" xmi:id="EAID_E8E756E9_25FE_326F_80C7_E284345C1312" xmi:type="uml:LiteralUnlimitedNatural"/>
+        </ownedAttribute>
+      </packagedElement>
+      <packagedElement name="Producto" visibility="public" xmi:id="EAID_5732FB3D_1CAC_3CDC_A2AD_248101C43C65" xmi:type="uml:Class">
+        <ownedAttribute isOrdered="false" isReadOnly="false" isStatic="false" isUnique="true" name="id" visibility="private" xmi:id="EAID_FD6DD3F5_5FC2_3C9F_82D1_8029C914B345" xmi:type="uml:Property">
+          <type href="http://www.sparxsystems.com/profiles/UML2.1/PrimitiveTypes.xmi#int" xmi:type="uml:PrimitiveType"/>
+          <lowerValue value="1" xmi:id="EAID_09EEB517_8133_38D0_94B4_9B0DACF355C1" xmi:type="uml:LiteralInteger"/>
+          <upperValue value="1" xmi:id="EAID_7B83E42A_F667_3AE0_A0EF_2E4D4FA8E3A3" xmi:type="uml:LiteralUnlimitedNatural"/>
+        </ownedAttribute>
+      </packagedElement>
+      <packagedElement memberEnd="EAID_79629E98_6265_3B05_BCAE_4FB893A84A11 EAID_052C1665_6B43_3EEF_B23B_72BAB72324A8" name="Detalle" visibility="public" xmi:id="EAID_D4E8D919_B589_341F_B533_007BC81154B4" xmi:type="uml:AssociationClass">
+        <ownedAttribute isOrdered="false" isReadOnly="false" isStatic="false" isUnique="true" name="cantidad" visibility="private" xmi:id="EAID_B763B018_9B44_3E44_B025_85E94B93BCF3" xmi:type="uml:Property">
+          <type href="http://www.sparxsystems.com/profiles/UML2.1/PrimitiveTypes.xmi#String" xmi:type="uml:PrimitiveType"/>
+          <lowerValue value="1" xmi:id="EAID_DE8A5FD6_3F1D_3921_A6D0_C3E2679C05E5" xmi:type="uml:LiteralInteger"/>
+          <upperValue value="1" xmi:id="EAID_0256E710_0B65_3001_A057_F5F772EFD612" xmi:type="uml:LiteralUnlimitedNatural"/>
+        </ownedAttribute>
+        <ownedEnd association="EAID_D4E8D919_B589_341F_B533_007BC81154B4" type="EAID_B04A01DE_7267_38DD_9427_D9CAD3841373" xmi:id="EAID_79629E98_6265_3B05_BCAE_4FB893A84A11" xmi:type="uml:Property">
+          <lowerValue value="*" xmi:id="EAID_F98ADB0F_286A_327A_BFDA_691F80DA891D" xmi:type="uml:LiteralInteger"/>
+          <upperValue value="*" xmi:id="EAID_82E59679_DFC5_31DF_928C_E2EB64B66E4A" xmi:type="uml:LiteralUnlimitedNatural"/>
+        </ownedEnd>
+        <ownedEnd association="EAID_D4E8D919_B589_341F_B533_007BC81154B4" type="EAID_5732FB3D_1CAC_3CDC_A2AD_248101C43C65" xmi:id="EAID_052C1665_6B43_3EEF_B23B_72BAB72324A8" xmi:type="uml:Property">
+          <lowerValue value="0" xmi:id="EAID_712881F5_4D32_3149_9253_29B602947D2A" xmi:type="uml:LiteralInteger"/>
+          <upperValue value="*" xmi:id="EAID_42353C99_F567_3C32_84B8_49E28EC184E8" xmi:type="uml:LiteralUnlimitedNatural"/>
+        </ownedEnd>
+      </packagedElement>
+    </packagedElement>
+  </uml:Model>
+  <xmi:Extension extender="Enterprise Architect" extenderID="6.5">
+    <elements>
+      <element name="TestDiagram" scope="public" xmi:idref="EAPK_950618DB_DD22_31BA_9754_5F18759183B5" xmi:type="uml:Package">
+        <model ea_eleType="package" ea_localid="1" package2="EAID_950618DB_DD22_31BA_9754_5F18759183B5" tpos="0"/>
+        <properties isSpecification="false" nType="0" sType="Package" scope="public"/>
+        <packageproperties version="1.0"/>
+      </element>
+      <element name="Venta" scope="public" xmi:idref="EAID_B04A01DE_7267_38DD_9427_D9CAD3841373" xmi:type="uml:Class">
+        <model ea_eleType="element" ea_localid="1" package="EAPK_950618DB_DD22_31BA_9754_5F18759183B5" tpos="0"/>
+        <properties isAbstract="false" isLeaf="false" isRoot="false" isSpecification="false" nType="0" sType="Class" scope="public"/>
+        <attributes>
+          <attribute name="id" scope="private" xmi:idref="EAID_95F8DE55_B94E_3484_A559_73C16A04C75C">
+            <properties changeability="changeable" collection="false" duplicates="0" static="0" type="int"/>
+            <coords ordered="0"/>
+            <bounds lower="1" upper="1"/>
+          </attribute>
+        </attributes>
+      </element>
+      <element name="Producto" scope="public" xmi:idref="EAID_5732FB3D_1CAC_3CDC_A2AD_248101C43C65" xmi:type="uml:Class">
+        <model ea_eleType="element" ea_localid="2" package="EAPK_950618DB_DD22_31BA_9754_5F18759183B5" tpos="1"/>
+        <properties isAbstract="false" isLeaf="false" isRoot="false" isSpecification="false" nType="0" sType="Class" scope="public"/>
+        <attributes>
+          <attribute name="id" scope="private" xmi:idref="EAID_FD6DD3F5_5FC2_3C9F_82D1_8029C914B345">
+            <properties changeability="changeable" collection="false" duplicates="0" static="0" type="int"/>
+            <coords ordered="0"/>
+            <bounds lower="1" upper="1"/>
+          </attribute>
+        </attributes>
+      </element>
+      <element name="Detalle" scope="public" xmi:idref="EAID_D4E8D919_B589_341F_B533_007BC81154B4" xmi:type="uml:AssociationClass">
+        <model ea_eleType="element" ea_localid="3" package="EAPK_950618DB_DD22_31BA_9754_5F18759183B5" tpos="2"/>
+        <properties isAbstract="false" isLeaf="false" isRoot="false" isSpecification="false" nType="0" sType="AssociationClass" scope="public"/>
+        <extendedProperties associationclass="EAID_D4E8D919_B589_341F_B533_007BC81154B4"/>
+        <attributes>
+          <attribute name="cantidad" scope="private" xmi:idref="EAID_B763B018_9B44_3E44_B025_85E94B93BCF3">
+            <properties changeability="changeable" collection="false" duplicates="0" static="0" type="String"/>
+            <coords ordered="0"/>
+            <bounds lower="1" upper="1"/>
+          </attribute>
+        </attributes>
+      </element>
+    </elements>
+    <connectors>
+      <connector xmi:idref="EAID_D4E8D919_B589_341F_B533_007BC81154B4">
+        <source xmi:idref="EAID_B04A01DE_7267_38DD_9427_D9CAD3841373">
+          <model ea_localid="1" name="Venta" type="Class"/>
+          <role targetScope="instance" visibility="Public"/>
+          <type aggregation="none" containment="Unspecified" multiplicity="*"/>
+          <constraints/>
+          <modifiers changeable="none" isNavigable="false" isOrdered="false"/>
+          <style value="Union=0;Derived=0;AllowDuplicates=0;Owned=0;Navigable=Non-Navigable;"/>
+          <documentation/>
+          <xrefs/>
+          <tags/>
+        </source>
+        <target xmi:idref="EAID_5732FB3D_1CAC_3CDC_A2AD_248101C43C65">
+          <model ea_localid="2" name="Producto" type="Class"/>
+          <role targetScope="instance" visibility="Public"/>
+          <type aggregation="none" containment="Unspecified" multiplicity="0..*"/>
+          <constraints/>
+          <modifiers changeable="none" isNavigable="true" isOrdered="false"/>
+          <style value="Union=0;Derived=0;AllowDuplicates=0;Owned=0;Navigable=Navigable;"/>
+          <documentation/>
+          <xrefs/>
+          <tags/>
+        </target>
+        <model ea_localid="1"/>
+        <properties direction="Source -&gt; Destination" ea_type="AssociationClass" name=""/>
+        <documentation/>
+        <appearance headStyle="0" lineStyle="0" linecolor="-1" linemode="3" linewidth="0" seqno="1"/>
+        <labels mt=""/>
+        <extendedProperties associationclass="EAID_D4E8D919_B589_341F_B533_007BC81154B4"/>
+        <style/>
+        <xrefs/>
+        <tags/>
+      </connector>
+    </connectors>
+    <diagrams>
+      <diagram xmi:id="EAID_7B6076E1_3229_30DB_AE47_18F978BFE24E">
+        <model localID="1" owner="EAPK_950618DB_DD22_31BA_9754_5F18759183B5" package="EAPK_950618DB_DD22_31BA_9754_5F18759183B5"/>
+        <properties name="TestDiagram" type="Logical"/>
+        <style1 value="ShowPrivate=1;ShowProtected=1;ShowPublic=1;OpParams=1;VisibleAttributeDetail=0;ShowOpRetType=1;HideAtts=0;HideOps=0;"/>
+        <style2 value="VisibleAttributeDetail=0;ShowOpRetType=1;"/>
+        <extendedProperties/>
+        <elements>
+          <element geometry="Left=100;Top=100;Right=340;Bottom=220;" seqno="1" style="DUID=9D411E45;" subject="EAID_B04A01DE_7267_38DD_9427_D9CAD3841373"/>
+          <element geometry="Left=290;Top=100;Right=530;Bottom=220;" seqno="2" style="DUID=C754C73D;" subject="EAID_5732FB3D_1CAC_3CDC_A2AD_248101C43C65"/>
+          <element geometry="Left=190;Top=290;Right=430;Bottom=410;" seqno="3" style="DUID=8C211561;" subject="EAID_D4E8D919_B589_341F_B533_007BC81154B4"/>
+        </elements>
+        <links>
+          <link connector="EAID_D4E8D919_B589_341F_B533_007BC81154B4" geometry="EDGE=3;SX=0;SY=0;EX=0;EY=0;" style="Mode=3;EOID=C754C73D;SOID=9D411E45;Color=-1;LWidth=0;"/>
+        </links>
+      </diagram>
+    </diagrams>
+  </xmi:Extension>
+</xmi:XMI>

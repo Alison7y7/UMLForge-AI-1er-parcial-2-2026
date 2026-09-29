@@ -1,0 +1,35 @@
+Created At: 2026-09-28T18:15:24-04:00
+Completed At: 2026-09-28T18:15:24-04:00
+File Path: `file:///c:/Users/yesen/Desktop/1er%20Parcial%20SW1/UMLForge-AI/backend/src/main/java/com/umlforge/backend/service/XmiExportService.java`
+Total Lines: 825
+Total Bytes: 38394
+Showing lines 800 to 825
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+800: 
+801:     private String normalizedVisibility(String value, String fallback) {
+802:         if (value == null) return fallback;
+803:         String normalized = value.toLowerCase(Locale.ROOT).trim();
+804:         return Set.of("public", "private", "protected").contains(normalized) ? normalized : fallback;
+805:     }
+806: 
+807:     private String normalizedRelationType(String value) {
+808:         return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
+809:     }
+810: 
+811:     private String eaRelationType(String type) {
+812:         return switch (type) {
+813:             case "HERENCIA", "GENERALIZACION" -> "Generalization";
+814:             case "DEPENDENCIA" -> "Dependency";
+815:             default -> "Association";
+816:         };
+817:     }
+818: 
+819:     private String safeText(String value) {
+820:         return value == null ? "" : value.trim();
+821:     }
+822: 
+823:     private record Multiplicity(String lower, String upper) {}
+824: }
+825: 
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+

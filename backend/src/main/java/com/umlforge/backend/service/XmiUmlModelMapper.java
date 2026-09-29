@@ -17,6 +17,8 @@ public class XmiUmlModelMapper {
                 umlClass.estereotipo(),
                 umlClass.posicionX(),
                 umlClass.posicionY(),
+                umlClass.ancho(),
+                umlClass.alto(),
                 umlClass.atributos().stream()
                     .map(attribute -> new UmlModelDto.UmlAttribute(
                         attribute.id(),
@@ -50,7 +52,10 @@ public class XmiUmlModelMapper {
                 relation.tipo(),
                 relation.nombre(),
                 relation.multiplicidadOrigen(),
-                relation.multiplicidadDestino()
+                relation.multiplicidadDestino(),
+                relation.rolOrigen(),
+                relation.rolDestino(),
+                relation.claseAsociacion()
             ))
             .toList();
 

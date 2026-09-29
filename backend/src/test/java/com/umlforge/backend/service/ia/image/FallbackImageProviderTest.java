@@ -83,9 +83,7 @@ class FallbackImageProviderTest {
         Set<String> positions = new HashSet<>();
         model.clases().forEach(umlClass ->
                 positions.add(umlClass.posicionX() + ":" + umlClass.posicionY()));
-        // Note: multiple classes can share the same X and Y coordinate,
-        // so checking unique positions isn't strictly necessary for our JSONs,
-        // but we ensure we check relationships properly.
+
 
         assertThat(model.relaciones()).allSatisfy(relation -> {
             assertThat(relation.origen()).isNotBlank();

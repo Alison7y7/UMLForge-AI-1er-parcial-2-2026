@@ -148,18 +148,18 @@ public class XmiImportService {
         }
 
         Map<String, String> idMap = new LinkedHashMap<>();
-        for (int index = 0; index < classSources.size(); index++) {
-            idMap.put(classSources.get(index).xmiId, "xmi-clase-" + (index + 1));
+        for (ClassSource source : classSources) {
+            idMap.put(source.xmiId, source.xmiId);
         }
 
         Map<String, String> stereotypes = collectStereotypes(elements, idMap.keySet());
-        Map<String, Point> positions = normalizePositions(extractEaPositions(elements, idMap.keySet()));
+        Map<String, Rectangle> positions = normalizePositions(extractEaPositions(elements, idMap.keySet()));
         Counters counters = new Counters();
         List<XmiImportResponse.UmlClass> classes = new ArrayList<>();
 
         for (int index = 0; index < classSources.size(); index++) {
             ClassSource source = classSources.get(index);
-            Point position = positions.getOrDefault(source.xmiId, fallbackPosition(index));
+            Rectangle position = positions.getOrDefault(source.xmiId, fallbackPosition(index));
             List<XmiImportResponse.UmlAttribute> attributes = parseAttributes(
                 source.element,
                 typeNames,
@@ -182,6 +182,8 @@ public class XmiImportService {
                 stereotype,
                 position.x,
                 position.y,
+                position.width,
+                position.height,
                 attributes,
                 methods
             ));
@@ -351,6 +353,9 @@ public class XmiImportService {
                     "DEPENDENCIA",
                     plainAttribute(element, "name"),
                     "",
+                    "",
+                    "",
+                    "",
                     ""
                 ));
             }
@@ -444,7 +449,7 @@ public class XmiImportService {
         if (!idMap.containsKey(sourceClass) || !idMap.containsKey(targetClass)) return null;
 
         return new XmiImportResponse.UmlRelation(
-            "xmi-relacion-" + (++counters.relation),
+            firstNonBlank(associationId, "xmi-relacion-" + (++counters.relation)),
             idMap.get(sourceClass),
             idMap.get(targetClass),
             type,
@@ -453,7 +458,10 @@ public class XmiImportService {
                 connector == null ? "" : connector.name
             ),
             multiplicityFor(ends, sourceClass),
-            multiplicityFor(ends, targetClass)
+            multiplicityFor(ends, targetClass),
+            roleFor(ends, sourceClass, connector == null ? "" : connector.sourceRole),
+            roleFor(ends, targetClass, connector == null ? "" : connector.targetRole),
+            "AssociationClass".equalsIgnoreCase(umlTypeName(association)) ? idMap.get(associationId) : ""
         );
     }
 
@@ -472,13 +480,17 @@ public class XmiImportService {
 
             String sourceClassId = "";
             String targetClassId = "";
+            String sourceRole = "";
+            String targetRole = "";
             String name = "";
             for (Element child : childElements(element)) {
                 String childName = localName(child);
                 if ("source".equalsIgnoreCase(childName)) {
                     sourceClassId = elementReference(child);
+                    sourceRole = connectorRole(child);
                 } else if ("target".equalsIgnoreCase(childName)) {
                     targetClassId = elementReference(child);
+                    targetRole = connectorRole(child);
                 } else if ("labels".equalsIgnoreCase(childName)) {
                     name = firstNonBlank(
                         plainAttribute(child, "mt"),
@@ -489,7 +501,7 @@ public class XmiImportService {
                     name = firstNonBlank(plainAttribute(child, "name"), name);
                 }
             }
-            return new EaConnectorMetadata(sourceClassId, targetClassId, name);
+            return new EaConnectorMetadata(sourceClassId, targetClassId, sourceRole, targetRole, name);
         }
         return null;
     }
@@ -500,6 +512,17 @@ public class XmiImportService {
             plainAttribute(element, "subject"),
             plainAttribute(element, "element")
         ));
+    }
+
+    private String connectorRole(Element connectorEnd) {
+        for (Element child : childElements(connectorEnd)) {
+            if (!"role".equalsIgnoreCase(localName(child))) continue;
+            return firstNonBlank(
+                plainAttribute(child, "name"),
+                plainAttribute(child, "value")
+            );
+        }
+        return "";
     }
 
     private void addGeneralization(
@@ -521,6 +544,9 @@ public class XmiImportService {
             "HERENCIA",
             plainAttribute(element, "name"),
             "",
+            "",
+            "",
+            "",
             ""
         ));
     }
@@ -536,7 +562,8 @@ public class XmiImportService {
             classId,
             findOwningClassId(element, idMap.keySet()),
             plainAttribute(element, "aggregation"),
-            readMultiplicity(element)
+            readMultiplicity(element),
+            plainAttribute(element, "name")
         );
     }
 
@@ -562,6 +589,15 @@ public class XmiImportService {
             .filter(value -> !value.isBlank())
             .findFirst()
             .orElse("");
+    }
+
+    private String roleFor(List<EndInfo> ends, String classId, String connectorFallback) {
+        return ends.stream()
+            .filter(end -> end.classId.equals(classId))
+            .map(end -> end.role)
+            .filter(value -> !value.isBlank())
+            .findFirst()
+            .orElse(connectorFallback == null ? "" : connectorFallback);
     }
 
     private String readMultiplicity(Element element) {
@@ -712,19 +748,19 @@ public class XmiImportService {
         return "";
     }
 
-    private Map<String, Point> extractEaPositions(List<Element> elements, Set<String> classIds) {
-        Map<String, Point> result = new HashMap<>();
+    private Map<String, Rectangle> extractEaPositions(List<Element> elements, Set<String> classIds) {
+        Map<String, Rectangle> result = new HashMap<>();
         for (Element element : elements) {
             if (!isInsideXmiExtension(element)) continue;
             String classId = findReferencedClass(element, classIds);
             if (classId.isBlank()) continue;
-            Point point = readPoint(element);
-            if (point != null) result.putIfAbsent(classId, point);
+            Rectangle rectangle = readRectangle(element);
+            if (rectangle != null) result.putIfAbsent(classId, rectangle);
         }
         return result;
     }
 
-    private Point readPoint(Element element) {
+    private Rectangle readRectangle(Element element) {
         Map<String, Double> values = new HashMap<>();
         NamedNodeMap attributes = element.getAttributes();
         for (int index = 0; index < attributes.getLength(); index++) {
@@ -745,9 +781,12 @@ public class XmiImportService {
             }
         }
 
-        Double x = rectangleCoordinate(values.get("left"), values.get("right"), values.get("cx"));
-        Double y = rectangleCoordinate(values.get("top"), values.get("bottom"), values.get("cy"));
-        return x != null && y != null ? new Point(x, y) : null;
+        Double left = firstNonNull(values.get("left"), values.get("cx"), values.get("right"));
+        Double top = firstNonNull(values.get("top"), values.get("cy"), values.get("bottom"));
+        if (left == null || top == null) return null;
+        double width = values.get("right") == null ? 0 : Math.abs(values.get("right") - left);
+        double height = values.get("bottom") == null ? 0 : Math.abs(values.get("bottom") - top);
+        return new Rectangle(left, top, width, height);
     }
 
     private Double rectangleCoordinate(Double start, Double end, Double center) {
@@ -763,20 +802,25 @@ public class XmiImportService {
         }
     }
 
-    private Map<String, Point> normalizePositions(Map<String, Point> positions) {
+    private Map<String, Rectangle> normalizePositions(Map<String, Rectangle> positions) {
         if (positions.isEmpty()) return positions;
         double minimumX = positions.values().stream().map(point -> point.x).min(Comparator.naturalOrder()).orElse(0.0);
         double minimumY = positions.values().stream().map(point -> point.y).min(Comparator.naturalOrder()).orElse(0.0);
-        Map<String, Point> normalized = new HashMap<>();
+        Map<String, Rectangle> normalized = new HashMap<>();
         positions.forEach((id, point) -> normalized.put(
             id,
-            new Point(point.x - minimumX + 80, point.y - minimumY + 80)
+            new Rectangle(
+                point.x - minimumX + 80,
+                point.y - minimumY + 80,
+                point.width,
+                point.height
+            )
         ));
         return normalized;
     }
 
-    private Point fallbackPosition(int index) {
-        return new Point(80 + (index % 4) * 280, 80 + (index / 4) * 220);
+    private Rectangle fallbackPosition(int index) {
+        return new Rectangle(80 + (index % 4) * 280, 80 + (index / 4) * 220, 0, 0);
     }
 
     private String normalizeVisibility(String visibility, String fallback) {
@@ -785,7 +829,11 @@ public class XmiImportService {
     }
 
     private boolean isUmlType(Element element, String expectedType) {
-        return expectedType.equalsIgnoreCase(umlTypeName(element));
+        String actualType = umlTypeName(element);
+        if ("AssociationClass".equalsIgnoreCase(actualType)) {
+            return "Class".equalsIgnoreCase(expectedType) || "Association".equalsIgnoreCase(expectedType);
+        }
+        return expectedType.equalsIgnoreCase(actualType);
     }
 
     private boolean isSemanticUmlElement(Element element, String expectedType) {
@@ -916,7 +964,13 @@ public class XmiImportService {
     }
 
     private record ClassSource(String xmiId, String name, Element element) {}
-    private record EndInfo(String classId, String ownerClassId, String aggregation, String multiplicity) {}
-    private record EaConnectorMetadata(String sourceClassId, String targetClassId, String name) {}
-    private record Point(double x, double y) {}
+    private record EndInfo(String classId, String ownerClassId, String aggregation, String multiplicity, String role) {}
+    private record EaConnectorMetadata(
+        String sourceClassId,
+        String targetClassId,
+        String sourceRole,
+        String targetRole,
+        String name
+    ) {}
+    private record Rectangle(double x, double y, double width, double height) {}
 }

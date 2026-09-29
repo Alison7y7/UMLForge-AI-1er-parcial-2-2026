@@ -224,4 +224,73 @@ class XmiImportServiceTests {
             .findFirst()
             .orElseThrow();
     }
+
+    @Test
+    void reconstruyeBidireccionalmenteAssociationClassYGeometria() throws Exception {
+        String xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <xmi:XMI xmlns:xmi="http://schema.omg.org/spec/XMI/2.1" xmlns:uml="http://schema.omg.org/spec/UML/2.1" xmi:version="2.1">
+                <uml:Model xmi:id="MODEL" name="Diagrama">
+                    <packagedElement xmi:type="uml:Package" xmi:id="PKG" name="Diagrama">
+                        <packagedElement xmi:type="uml:Class" xmi:id="C1" name="Venta" />
+                        <packagedElement xmi:type="uml:Class" xmi:id="C2" name="Producto" />
+                        <packagedElement xmi:type="uml:AssociationClass" xmi:id="C3" name="Detalle" memberEnd="E1 E2">
+                            <ownedEnd xmi:id="E1" type="C1" name="ventas" />
+                            <ownedEnd xmi:id="E2" type="C2" name="productos" />
+                        </packagedElement>
+                    </packagedElement>
+                </uml:Model>
+                <xmi:Extension extender="Enterprise Architect" extenderID="6.5">
+                    <elements>
+                        <element xmi:idref="C1" xmi:type="uml:Class" name="Venta">
+                            <properties sType="Class" />
+                        </element>
+                        <element xmi:idref="C2" xmi:type="uml:Class" name="Producto">
+                            <properties sType="Class" />
+                        </element>
+                        <element xmi:idref="C3" xmi:type="uml:AssociationClass" name="Detalle">
+                            <properties sType="AssociationClass" />
+                            <extendedProperties associationclass="R1" />
+                        </element>
+                    </elements>
+                    <connectors>
+                        <connector xmi:idref="R1">
+                            <source xmi:idref="C1">
+                                <role name="ventas"/>
+                                <type multiplicity="1..*"/>
+                            </source>
+                            <target xmi:idref="C2">
+                                <role name="productos"/>
+                                <type multiplicity="1..*"/>
+                            </target>
+                            <properties ea_type="AssociationClass"/>
+                            <extendedProperties associationclass="C3"/>
+                        </connector>
+                    </connectors>
+                    <diagrams>
+                        <diagram xmi:id="D1">
+                            <elements>
+                                <element geometry="Left=100;Top=100;Right=240;Bottom=220;" subject="C1" />
+                                <element geometry="Left=300;Top=100;Right=440;Bottom=220;" subject="C2" />
+                                <element geometry="Left=200;Top=200;Right=340;Bottom=320;" subject="C3" />
+                            </elements>
+                        </diagram>
+                    </diagrams>
+                </xmi:Extension>
+            </xmi:XMI>
+            """;
+            
+        XmiImportResponse response = service.importar(new MockMultipartFile("archivo", "diagrama.xmi", "application/xml", xml.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        
+        assertEquals(3, response.clases().size());
+        XmiImportResponse.UmlClass detalle = findClass(response, "Detalle");
+        assertEquals(140.0, detalle.ancho());
+        assertEquals(120.0, detalle.alto());
+        
+        assertEquals(1, response.relaciones().size());
+        XmiImportResponse.UmlRelation relacion = response.relaciones().get(0);
+        assertEquals(detalle.id(), relacion.claseAsociacion());
+        assertEquals("ventas", relacion.rolOrigen());
+        assertEquals("productos", relacion.rolDestino());
+    }
 }

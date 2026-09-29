@@ -27,6 +27,8 @@ export interface UmlClass {
   estereotipo?: string;
   posicionX: number;
   posicionY: number;
+  ancho?: number;
+  alto?: number;
   atributos: UmlAttribute[];
   metodos: UmlMethod[];
 }
@@ -41,6 +43,9 @@ export interface UmlRelation {
   nombre?: string;
   multiplicidadOrigen: string;
   multiplicidadDestino: string;
+  rolOrigen?: string;
+  rolDestino?: string;
+  claseAsociacion?: string;
 }
 
 export interface UmlModelJson {
