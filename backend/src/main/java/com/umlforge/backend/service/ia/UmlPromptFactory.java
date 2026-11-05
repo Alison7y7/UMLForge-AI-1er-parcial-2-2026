@@ -6,62 +6,51 @@ final class UmlPromptFactory {
 
     static String buildForOllama(String userPrompt) {
         return """
-            Eres un generador de modelos UML para UMLForge-AI.
-            Convierte la descripción del usuario en un diagrama de clases UML.
+            Genera un diagrama de clases UML como un único objeto JSON válido, sin Markdown ni explicaciones.
 
-            REGLAS OBLIGATORIAS:
-            - Devuelve únicamente un objeto JSON válido.
-            - No uses Markdown, bloques de código, comentarios ni explicaciones.
-            - Prioriza generar contenido útil. Nunca devuelvas el arreglo clases vacío.
-            - Genera siempre al menos una clase relacionada con la descripción.
-            - Cada clase debe incluir como mínimo el atributo id de tipo Long.
-            - Genera las clases, atributos y relaciones necesarias; no omitas contenido para simplificar la respuesta.
-            - Los únicos tipos permitidos para atributos, parámetros y retornos son: Long, String, Integer, Double, Boolean, LocalDate.
-            - Las únicas visibilidades permitidas son: public, private, protected.
-            - Los únicos tipos de relación permitidos son: ASOCIACION, AGREGACION, COMPOSICION, GENERALIZACION.
-            - Las únicas multiplicidades permitidas son: 1, 0..1, 0..*, *.
-            - Todos los id deben ser cadenas únicas y no vacías en todo el modelo.
-            - origen y destino deben contener el id de una clase existente, no su nombre.
-            - clases, atributos, metodos, parametros y relaciones siempre deben ser arreglos JSON, nunca null.
-            - Distribuye las clases en posiciones distintas para evitar superposiciones.
-
-            FORMATO EXACTO DE RESPUESTA:
+            ESQUEMA EXACTO:
             {
               "clases": [
                 {
-                  "id": "clase-identificador-unico",
-                  "nombre": "NombreClase",
+                  "id": "c1",
+                  "nombre": "Cliente",
                   "estereotipo": "entity",
                   "posicionX": 100.0,
                   "posicionY": 100.0,
-                  "atributos": [
-                    {
-                      "id": "atributo-identificador-unico",
-                      "nombre": "id",
-                      "tipo": "Long",
-                      "visibilidad": "private"
-                    }
-                  ],
+                  "atributos": [{"id":"a1","nombre":"id","tipo":"Long","visibilidad":"private"}],
+                  "metodos": []
+                },
+                {
+                  "id": "c2",
+                  "nombre": "Pedido",
+                  "estereotipo": "entity",
+                  "posicionX": 400.0,
+                  "posicionY": 100.0,
+                  "atributos": [{"id":"a2","nombre":"id","tipo":"Long","visibilidad":"private"}],
                   "metodos": []
                 }
               ],
-              "relaciones": [
-                {
-                  "id": "relacion-identificador-unico",
-                  "origen": "id-clase-origen",
-                  "destino": "id-clase-destino",
-                  "tipo": "ASOCIACION",
-                  "nombre": "nombreRelacion",
-                  "multiplicidadOrigen": "1",
-                  "multiplicidadDestino": "0..*"
-                }
-              ]
+              "relaciones": [{"id":"r1","origen":"c1","destino":"c2","tipo":"ASOCIACION","nombre":"pedidos","multiplicidadOrigen":"1","multiplicidadDestino":"0..*"}]
             }
 
-            Si no existen relaciones claras, devuelve relaciones como [], pero clases nunca puede ser [].
+            REGLAS:
+            - Genera solo las clases de dominio solicitadas y al menos una clase. Cada clase incluye un atributo id de tipo Long.
+            - Una relación UML va solo en relaciones, nunca como clase auxiliar. Una clase asociativa requiere un concepto real con atributos propios.
+            - Si se piden Cliente y Pedido uno-a-muchos, genera exactamente esas dos clases y una ASOCIACION: origen Cliente 1, destino Pedido 0..*.
+            - Todos los id son únicos; origen y destino usan id de clases existentes.
+            - Tipos permitidos: Long, String, Integer, Double, Boolean, LocalDate. Visibilidades: public, private, protected.
+            - Relaciones: ASOCIACION, AGREGACION, COMPOSICION, GENERALIZACION. Multiplicidades: 1, 0..1, 0..*, *.
+            - clases, relaciones, atributos, metodos y parametros son arreglos, nunca null. Sin relaciones usa [].
+            - posicionX y posicionY son números JSON obligatorios y distintos entre clases; nunca null, cadenas ni campos omitidos.
+            - Si agregas métodos usa: {"id":"m1","nombre":"operacion","tipoRetorno":"String","visibilidad":"public","parametros":[{"nombre":"valor","tipo":"String"}]}.
 
-            DESCRIPCIÓN DEL USUARIO:
-            """ + userPrompt;
+            SOLICITUD:
+            """ + userPrompt + """
+
+            VERIFICACIÓN FINAL:
+            - Si la solicitud enumera clases exactas, no agregues ninguna otra.
+            - Uno-a-muchos siempre requiere un objeto en relaciones con multiplicidades 1 y 0..*, nunca una clase adicional.
+            """;
     }
 
     static String build(String userPrompt) {

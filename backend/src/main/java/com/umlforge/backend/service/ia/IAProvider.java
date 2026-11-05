@@ -8,5 +8,9 @@ public interface IAProvider {
 
     boolean isAvailable();
 
+    default String getUnavailableReason() {
+        return "proveedor deshabilitado o sin configuracion valida";
+    }
+
     IAProviderResult generate(String prompt);
 }

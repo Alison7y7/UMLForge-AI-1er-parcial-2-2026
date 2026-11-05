@@ -24,18 +24,30 @@ public class OllamaProvider implements IAProvider {
     private final String baseUrl;
     private final String model;
     private final Duration timeout;
+    private final int numCtx;
+    private final int numPredict;
+    private final double temperature;
+    private final String keepAlive;
 
     public OllamaProvider(
             ObjectMapper objectMapper,
             @Value("${ia.ollama.enabled:true}") boolean enabled,
             @Value("${ia.ollama.base-url:http://localhost:11434}") String baseUrl,
             @Value("${ia.ollama.model:llama3.1}") String model,
-            @Value("${ia.request-timeout-seconds:45}") long timeoutSeconds) {
+            @Value("${ia.ollama.request-timeout-seconds:${ia.request-timeout-seconds:90}}") long timeoutSeconds,
+            @Value("${ia.ollama.num-ctx:3072}") int numCtx,
+            @Value("${ia.ollama.num-predict:1200}") int numPredict,
+            @Value("${ia.ollama.temperature:0.0}") double temperature,
+            @Value("${ia.ollama.keep-alive:10m}") String keepAlive) {
         this.objectMapper = objectMapper;
         this.enabled = enabled;
         this.baseUrl = baseUrl.trim().replaceAll("/+$", "");
         this.model = model.trim();
         this.timeout = Duration.ofSeconds(timeoutSeconds);
+        this.numCtx = numCtx;
+        this.numPredict = numPredict;
+        this.temperature = temperature;
+        this.keepAlive = keepAlive.trim();
         this.httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
     }
 
@@ -46,12 +58,20 @@ public class OllamaProvider implements IAProvider {
 
     @Override
     public int getPriority() {
-        return 10;
+        return 20;
     }
 
     @Override
     public boolean isAvailable() {
         return enabled && !baseUrl.isBlank() && !model.isBlank();
+    }
+
+    @Override
+    public String getUnavailableReason() {
+        if (!enabled) return "proveedor deshabilitado";
+        if (baseUrl.isBlank()) return "URL base no configurada";
+        if (model.isBlank()) return "modelo no configurado";
+        return IAProvider.super.getUnavailableReason();
     }
 
     @Override
@@ -61,6 +81,12 @@ public class OllamaProvider implements IAProvider {
             body.put("model", model);
             body.put("prompt", UmlPromptFactory.buildForOllama(prompt));
             body.put("stream", false);
+            body.put("format", "json");
+            body.put("keep_alive", keepAlive);
+            var options = body.putObject("options");
+            options.put("num_ctx", numCtx);
+            options.put("num_predict", numPredict);
+            options.put("temperature", temperature);
 
             String endpoint = baseUrl.endsWith("/api/generate")
                     ? baseUrl
@@ -69,7 +95,7 @@ public class OllamaProvider implements IAProvider {
 
             log.info("Ollama URL: {}", endpoint);
             log.info("Ollama MODEL: {}", model);
-            log.info("Ollama BODY: {}", requestBody);
+            log.debug("Peticion a Ollama preparada con {} caracteres", requestBody.length());
 
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(endpoint))
@@ -98,11 +124,11 @@ public class OllamaProvider implements IAProvider {
             }
 
             String generated = root.path("response").asText();
-            log.info("\n=== RESPUESTA RAW OLLAMA ===\n{}\n===========", generated);
+            log.debug("Ollama devolvio {} caracteres", generated.length());
 
             try {
                 Integer tokens = root.has("eval_count") ? root.get("eval_count").asInt() : null;
-                return new IAProviderResult(UmlJsonSupport.parseModel(objectMapper, generated), tokens);
+                return new IAProviderResult(UmlJsonSupport.parseOllamaModel(objectMapper, generated), tokens);
             } catch (IAProviderException e) {
                 log.error("Error de parseo JSON UML en la respuesta de Ollama: {}", e.getMessage(), e);
                 throw new IAProviderException(

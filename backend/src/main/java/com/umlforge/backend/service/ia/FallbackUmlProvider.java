@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.text.Normalizer;
 
 @Slf4j
 @Component
@@ -14,7 +15,7 @@ public class FallbackUmlProvider implements IAProvider {
 
     @Override
     public String getName() {
-        return "fallback-local";
+        return "fallback-local-template";
     }
 
     @Override
@@ -29,8 +30,10 @@ public class FallbackUmlProvider implements IAProvider {
 
     @Override
     public IAProviderResult generate(String prompt) {
-        log.info("Fallback UML local utilizado");
-        String normalized = prompt.toLowerCase(Locale.ROOT);
+        String normalized = normalize(extractUserRequest(prompt));
+        if (!hasTemplateIntent(normalized)) {
+            throw unsupportedRequest();
+        }
         if (normalized.contains("biblioteca") || normalized.contains("libro") || normalized.contains("préstamo") || normalized.contains("prestamo")) {
             return new IAProviderResult(libraryModel(), 0);
         }
@@ -47,11 +50,37 @@ public class FallbackUmlProvider implements IAProvider {
             return new IAProviderResult(clinicModel(), 0);
         }
 
-        UmlModelDto.UmlClass systemClass = umlClass(
-                "clase-sistema", "Sistema", 120, 100,
-                List.of(attribute("attr-sistema-id", "id", "Long"))
+        throw unsupportedRequest();
+    }
+
+    private String extractUserRequest(String prompt) {
+        if (prompt == null) return "";
+        String marker = "NUEVA SOLICITUD DEL USUARIO:";
+        int markerIndex = prompt.lastIndexOf(marker);
+        return markerIndex >= 0 ? prompt.substring(markerIndex + marker.length()).trim() : prompt.trim();
+    }
+
+    private boolean hasTemplateIntent(String prompt) {
+        return containsAny(prompt, "crear", "generar", "modelar", "disenar", "diagrama", "sistema");
+    }
+
+    private boolean containsAny(String value, String... terms) {
+        for (String term : terms) {
+            if (value.contains(term)) return true;
+        }
+        return false;
+    }
+
+    private String normalize(String value) {
+        return Normalizer.normalize(value, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "")
+                .toLowerCase(Locale.ROOT);
+    }
+
+    private IAProviderException unsupportedRequest() {
+        return new IAProviderException(
+                "El fallback local no dispone de una plantilla compatible con la solicitud"
         );
-        return new IAProviderResult(new UmlModelDto(List.of(systemClass), List.of()), 0);
     }
 
     private UmlModelDto libraryModel() {

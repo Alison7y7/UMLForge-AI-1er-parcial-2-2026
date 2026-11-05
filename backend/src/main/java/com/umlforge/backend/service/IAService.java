@@ -60,6 +60,9 @@ public class IAService {
 
         for (IAProvider provider : providers) {
             if (!provider.isAvailable()) {
+                String reason = provider.getUnavailableReason();
+                errors.add(provider.getName() + ": " + reason);
+                log.info("Proveedor IA {} no disponible: {}", provider.getName(), reason);
                 continue;
             }
 

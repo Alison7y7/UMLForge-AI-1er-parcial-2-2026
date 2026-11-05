@@ -25,3 +25,6 @@ backend/src/main/resources/application.properties
 # Variables de entorno raíz
 .env
 .env.*
+
+# Artefactos temporales de pruebas
+test-output.xmi

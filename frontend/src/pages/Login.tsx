@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { api } from '../api/axios';
 import { useAuthStore } from '../store/authStore';
 import { Eye, EyeOff, Mail, Lock, ArrowRight, Code, Sparkles, GitMerge } from 'lucide-react';
 import Logo from '../components/Logo';
+import PwaInstallButton from '../components/pwa/PwaInstallButton';
 
 export default function Login() {
   const [correo, setCorreo] = useState('');
@@ -39,15 +40,26 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-white relative overflow-hidden flex items-center justify-center font-sans">
+    <div className="min-h-[100dvh] bg-white relative overflow-hidden flex items-center justify-center font-sans py-8 px-4 sm:px-6">
       
+      {/* Botón discreto de instalación PWA con respeto a safe areas */}
+      <div 
+        className="absolute top-4 right-4 z-30"
+        style={{
+          top: 'max(1rem, env(safe-area-inset-top, 0px))',
+          right: 'max(1rem, env(safe-area-inset-right, 0px))',
+        }}
+      >
+        <PwaInstallButton />
+      </div>
+
       {/* Background Decorativo Suave */}
-      <div className="absolute top-[-10%] left-[-5%] w-[40rem] h-[40rem] bg-lila-light rounded-full mix-blend-multiply filter blur-3xl opacity-40"></div>
-      <div className="absolute bottom-[-10%] right-[-5%] w-[40rem] h-[40rem] bg-pink-light rounded-full mix-blend-multiply filter blur-3xl opacity-40"></div>
-      <div className="absolute top-[20%] right-[20%] w-[20rem] h-[20rem] bg-blue-pastel rounded-full mix-blend-multiply filter blur-3xl opacity-30"></div>
+      <div className="absolute top-[-10%] left-[-5%] w-[40rem] h-[40rem] bg-lila-light rounded-full mix-blend-multiply filter blur-3xl opacity-40 pointer-events-none"></div>
+      <div className="absolute bottom-[-10%] right-[-5%] w-[40rem] h-[40rem] bg-pink-light rounded-full mix-blend-multiply filter blur-3xl opacity-40 pointer-events-none"></div>
+      <div className="absolute top-[20%] right-[20%] w-[20rem] h-[20rem] bg-blue-pastel rounded-full mix-blend-multiply filter blur-3xl opacity-30 pointer-events-none"></div>
 
       {/* Lineas curvas suaves en esquinas */}
-      <svg className="absolute top-0 left-0 w-64 h-64 opacity-20 pointer-events-none" viewBox="0 0 100 100" fill="none">
+      <svg className="absolute top-0 left-0 w-48 sm:w-64 h-48 sm:h-64 opacity-20 pointer-events-none" viewBox="0 0 100 100" fill="none">
         <path d="M0,0 L100,0 C100,0 50,50 0,100 Z" fill="url(#grad1)" />
         <defs>
           <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -57,7 +69,7 @@ export default function Login() {
         </defs>
       </svg>
       
-      <svg className="absolute bottom-0 right-0 w-64 h-64 opacity-20 pointer-events-none transform rotate-180" viewBox="0 0 100 100" fill="none">
+      <svg className="absolute bottom-0 right-0 w-48 sm:w-64 h-48 sm:h-64 opacity-20 pointer-events-none transform rotate-180" viewBox="0 0 100 100" fill="none">
         <path d="M0,0 L100,0 C100,0 50,50 0,100 Z" fill="url(#grad2)" />
         <defs>
           <linearGradient id="grad2" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -67,22 +79,22 @@ export default function Login() {
         </defs>
       </svg>
 
-      <div className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col lg:flex-row items-center justify-between gap-12 lg:gap-8">
+      <div className="relative z-10 w-full max-w-7xl mx-auto flex flex-col lg:flex-row items-center justify-between gap-8 lg:gap-12">
         
-        {/* LADO IZQUIERDO: Presentación (Oculto en móvil) */}
+        {/* LADO IZQUIERDO: Presentación (Oculto en móvil y tablet vertical) */}
         <div className="hidden lg:flex flex-col flex-1 max-w-md pt-8">
-          <h1 className="text-5xl font-extrabold text-text-dark leading-tight tracking-tight mb-6">
+          <h1 className="text-4xl xl:text-5xl font-extrabold text-text-dark leading-tight tracking-tight mb-6">
             Diagramas <br />
             <span className="text-lila-main">más simples</span> <br />
             con IA
           </h1>
-          <p className="text-xl text-gray-500 font-medium mb-10 leading-relaxed">
+          <p className="text-lg xl:text-xl text-gray-500 font-medium mb-10 leading-relaxed">
             Visualiza. Diseña. Crea. <br />
-            Conecta tus ideas.
+            Conecta tus ideas colaborativamente.
           </p>
           
           {/* Gráfico decorativo de UML sutil */}
-          <div className="relative w-48 h-48 opacity-80">
+          <div className="relative w-44 h-44 opacity-85">
             <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-sm">
               <rect x="10" y="10" width="35" height="25" rx="6" fill="#FCE7F3" stroke="#F9A8D4" strokeWidth="2"/>
               <rect x="55" y="60" width="35" height="25" rx="6" fill="#EDE9FE" stroke="#8B5CF6" strokeWidth="2"/>
@@ -93,34 +105,37 @@ export default function Login() {
         </div>
 
         {/* CENTRO: Tarjeta de Login principal */}
-        <div className="flex-shrink-0 w-full max-w-md">
-          <div className="bg-white/80 backdrop-blur-md p-10 rounded-[2rem] shadow-xl shadow-lila-main/5 border border-white/50">
-            <div className="flex flex-col items-center mb-8">
-              <div className="flex items-center gap-3 mb-6">
-                <Logo className="w-10 h-10" />
-                <span className="text-2xl font-bold text-text-dark tracking-tight">UMLForge AI</span>
+        <div className="w-full max-w-md mx-auto">
+          <div className="bg-white/85 backdrop-blur-md p-6 sm:p-10 rounded-3xl sm:rounded-[2rem] shadow-xl shadow-lila-main/5 border border-white/60">
+            <div className="flex flex-col items-center mb-6 sm:mb-8 text-center">
+              <div className="flex items-center gap-3 mb-4 sm:mb-6">
+                <Logo className="w-9 h-9 sm:w-10 sm:h-10 shrink-0" />
+                <span className="text-xl sm:text-2xl font-bold text-text-dark tracking-tight">UMLForge AI</span>
               </div>
-              <h2 className="text-3xl font-semibold text-text-dark tracking-tight">
+              <h2 className="text-2xl sm:text-3xl font-bold text-text-dark tracking-tight">
                 Inicia sesión
               </h2>
-              <p className="mt-3 text-center text-sm text-gray-500 max-w-[280px]">
+              <p className="mt-2 text-xs sm:text-sm text-gray-500 max-w-[280px]">
                 Accede a tu cuenta y continúa trabajando en tus diagramas.
               </p>
             </div>
             
-            <form className="space-y-5" onSubmit={handleSubmit}>
-              <div className="space-y-4">
+            <form className="space-y-4 sm:space-y-5" onSubmit={handleSubmit}>
+              <div className="space-y-3.5 sm:space-y-4">
                 {/* Campo Correo */}
                 <div>
-                  <label className="block text-sm font-medium text-text-dark mb-1.5 ml-1">Correo electrónico</label>
+                  <label className="block text-xs sm:text-sm font-semibold text-text-dark mb-1.5 ml-1">
+                    Correo electrónico
+                  </label>
                   <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-lila-main/60">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-lila-main/70">
                       <Mail className="w-5 h-5" />
                     </div>
                     <input
                       type="email"
                       required
-                      className="appearance-none block w-full pl-11 pr-4 py-3.5 bg-bg-main/50 border border-lila-light/60 text-text-dark rounded-2xl focus:outline-none focus:ring-2 focus:ring-lila-main focus:border-transparent transition-all placeholder-gray-400 font-medium"
+                      autoComplete="email"
+                      className="appearance-none block w-full pl-11 pr-4 py-3 bg-bg-main/60 border border-lila-light text-text-dark rounded-xl sm:rounded-2xl focus:outline-none focus:ring-2 focus:ring-lila-main focus:border-transparent transition-all placeholder-gray-400 font-medium text-sm sm:text-base"
                       placeholder="ejemplo@umlforge.com"
                       value={correo}
                       onChange={(e) => setCorreo(e.target.value)}
@@ -130,15 +145,18 @@ export default function Login() {
 
                 {/* Campo Contraseña */}
                 <div>
-                  <label className="block text-sm font-medium text-text-dark mb-1.5 ml-1">Contraseña</label>
+                  <label className="block text-xs sm:text-sm font-semibold text-text-dark mb-1.5 ml-1">
+                    Contraseña
+                  </label>
                   <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-lila-main/60">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-lila-main/70">
                       <Lock className="w-5 h-5" />
                     </div>
                     <input
                       type={showPassword ? "text" : "password"}
                       required
-                      className="appearance-none block w-full pl-11 pr-12 py-3.5 bg-bg-main/50 border border-lila-light/60 text-text-dark rounded-2xl focus:outline-none focus:ring-2 focus:ring-lila-main focus:border-transparent transition-all placeholder-gray-400 font-medium"
+                      autoComplete="current-password"
+                      className="appearance-none block w-full pl-11 pr-12 py-3 bg-bg-main/60 border border-lila-light text-text-dark rounded-xl sm:rounded-2xl focus:outline-none focus:ring-2 focus:ring-lila-main focus:border-transparent transition-all placeholder-gray-400 font-medium text-sm sm:text-base"
                       placeholder="••••••••"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
@@ -146,7 +164,8 @@ export default function Login() {
                     <button 
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-lila-main transition-colors"
+                      className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-gray-400 hover:text-lila-main transition-colors min-h-[44px] min-w-[44px] justify-center"
+                      aria-label={showPassword ? "Ocultar contraseña" : "Ver contraseña"}
                     >
                       {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                     </button>
@@ -154,23 +173,28 @@ export default function Login() {
                 </div>
               </div>
 
-              {error && <div className="text-red-500 text-sm text-center bg-red-50 p-3 rounded-xl border border-red-100 font-medium mt-4">{error}</div>}
+              {error && (
+                <div className="text-red-500 text-xs sm:text-sm text-center bg-red-50 p-3 rounded-xl border border-red-100 font-medium mt-3 animate-in fade-in">
+                  {error}
+                </div>
+              )}
 
               <div className="pt-2">
                 <button
                   type="submit"
                   disabled={loading}
-                  className="group relative w-full flex justify-center items-center gap-2 py-3.5 px-4 border border-transparent text-sm font-bold rounded-2xl text-white bg-gradient-to-r from-lila-main to-pink-main hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-lila-main disabled:opacity-70 transition-all shadow-md shadow-pink-main/20"
+                  className="group relative w-full flex justify-center items-center gap-2 py-3.5 px-4 border border-transparent text-sm sm:text-base font-bold rounded-xl sm:rounded-2xl text-white bg-gradient-to-r from-lila-main to-pink-main hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-lila-main disabled:opacity-70 transition-all shadow-md shadow-pink-main/20 min-h-[48px]"
                 >
-                  {loading ? 'Iniciando...' : 'Iniciar sesión'}
+                  <span>{loading ? 'Iniciando...' : 'Iniciar sesión'}</span>
                   {!loading && <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />}
                 </button>
               </div>
-              <div className="mt-6 text-center text-sm text-gray-500">
+
+              <div className="mt-5 text-center text-xs sm:text-sm text-gray-500">
                 ¿No tienes una cuenta?{' '}
-                <a href="/register" className="font-semibold text-lila-main hover:text-pink-main transition-colors">
+                <Link to="/register" className="font-bold text-lila-main hover:text-pink-main transition-colors">
                   Regístrate
-                </a>
+                </Link>
               </div>
             </form>
           </div>
@@ -178,7 +202,6 @@ export default function Login() {
 
         {/* LADO DERECHO: Decoraciones (Oculto en móvil) */}
         <div className="hidden lg:flex flex-col flex-1 items-end justify-center pt-12 relative h-[500px]">
-          
           <div className="absolute top-10 right-20 text-lila-main/40 flex items-center gap-2">
             <Sparkles className="w-6 h-6" />
             <span className="text-xl">✦</span>
@@ -204,7 +227,6 @@ export default function Login() {
           <div className="absolute bottom-10 right-40 text-pink-main/30">
             <span className="text-3xl">✦</span>
           </div>
-
         </div>
 
       </div>

@@ -52,39 +52,6 @@ interface BrowserSpeechRecognition {
 
 type BrowserSpeechRecognitionConstructor = new () => BrowserSpeechRecognition;
 
-const UML_EXAMPLES = [
-  {
-    icon: '📚',
-    name: 'Biblioteca',
-    prompt: 'Crear sistema de biblioteca con libros, usuarios y préstamos',
-    classes: ['Libro', 'Usuario', 'Prestamo'],
-  },
-  {
-    icon: '🐶',
-    name: 'Veterinaria',
-    prompt: 'Crear sistema de veterinaria con mascotas, dueños, veterinarios y consultas',
-    classes: ['Mascota', 'Dueño', 'Veterinario', 'Consulta'],
-  },
-  {
-    icon: '🎓',
-    name: 'Universidad',
-    prompt: 'Crear sistema universitario con estudiantes, cursos y profesores',
-    classes: ['Estudiante', 'Curso', 'Profesor', 'Inscripcion'],
-  },
-  {
-    icon: '🛒',
-    name: 'Tienda',
-    prompt: 'Crear sistema de tienda con productos, clientes y ventas',
-    classes: ['Producto', 'Cliente', 'Venta', 'DetalleVenta'],
-  },
-  {
-    icon: '🏥',
-    name: 'Clínica Médica',
-    prompt: 'Crear sistema de clínica con pacientes, médicos, citas e historiales médicos',
-    classes: ['Paciente', 'Medico', 'Cita', 'HistorialMedico'],
-  },
-] as const;
-
 export default function IAModelModal({
   diagramaId,
   hasExistingContent,
@@ -267,23 +234,23 @@ export default function IAModelModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/50 p-2 sm:p-4 backdrop-blur-sm">
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="ia-model-title"
-        className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-lg bg-white shadow-xl"
+        className="flex max-h-[92dvh] sm:max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl sm:rounded-xl bg-white shadow-xl"
       >
-        <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-lila-light/50 text-lila-main">
+        <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 sm:px-5 sm:py-4 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <div className="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl bg-lila-light/50 text-lila-main">
               <Sparkles className="h-5 w-5" />
             </div>
-            <div>
-              <h2 id="ia-model-title" className="text-lg font-bold text-gray-800">
+            <div className="min-w-0">
+              <h2 id="ia-model-title" className="text-base sm:text-lg font-bold text-gray-800 truncate">
                 Modelar con Inteligencia Artificial
               </h2>
-              <p className="mt-1 text-xs text-gray-500">
+              <p className="mt-0.5 text-xs text-gray-500 truncate">
                 Describe el sistema y revisa el modelo antes de aplicarlo.
               </p>
             </div>
@@ -292,7 +259,7 @@ export default function IAModelModal({
             type="button"
             onClick={handleClose}
             disabled={loading}
-            className="p-1.5 text-gray-400 transition-colors hover:text-gray-700 disabled:opacity-50"
+            className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center text-gray-400 transition-colors hover:text-gray-700 disabled:opacity-50 shrink-0"
             aria-label="Cerrar"
             title="Cerrar"
           >
@@ -300,40 +267,7 @@ export default function IAModelModal({
           </button>
         </div>
 
-        <div className="flex-1 space-y-5 overflow-y-auto p-5">
-          <div>
-            <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-gray-500">
-              Ejemplos de sistemas UML
-            </h3>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {UML_EXAMPLES.map(example => (
-                <button
-                  key={example.name}
-                  type="button"
-                  disabled={loading || isListening || isProcessingSpeech}
-                  onClick={() => {
-                    setPrompt(example.prompt);
-                    setResult(null);
-                    setError('');
-                  }}
-                  className="rounded-lg border border-gray-200 bg-white p-3 text-left transition-all hover:border-lila-main hover:bg-lila-light/10 hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <div className="flex items-center gap-2 font-bold text-gray-800">
-                    <span className="text-lg" aria-hidden="true">{example.icon}</span>
-                    {example.name}
-                  </div>
-                  <div className="mt-2 text-[11px] leading-relaxed text-gray-500">
-                    <span className="font-bold text-gray-600">Prompt:</span> {example.prompt}
-                  </div>
-                  <div className="mt-2 text-[11px] text-gray-500">
-                    <span className="font-bold text-gray-600">Genera:</span>{' '}
-                    {example.classes.join(', ')}
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-
+        <div className="flex-1 space-y-4 sm:space-y-5 overflow-y-auto p-4 sm:p-5">
           <div>
             <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
               <label htmlFor="ia-prompt" className="text-xs font-bold uppercase tracking-wider text-gray-500">
@@ -474,12 +408,12 @@ export default function IAModelModal({
           )}
         </div>
 
-        <div className="flex items-center justify-end gap-3 border-t border-gray-200 bg-gray-50 px-5 py-4">
+        <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 sm:gap-3 border-t border-gray-200 bg-gray-50 px-4 py-3 sm:px-5 sm:py-4 shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <button
             type="button"
             onClick={handleClose}
             disabled={loading}
-            className="px-4 py-2 text-sm font-semibold text-gray-600 transition-colors hover:text-gray-900 disabled:opacity-50"
+            className="w-full sm:w-auto px-4 py-2.5 sm:py-2 min-h-[44px] flex items-center justify-center text-sm font-semibold text-gray-600 transition-colors hover:text-gray-900 disabled:opacity-50"
           >
             Cancelar
           </button>
@@ -488,29 +422,29 @@ export default function IAModelModal({
               type="button"
               onClick={handleGenerate}
               disabled={loading || isListening || isProcessingSpeech || !prompt.trim()}
-              className="flex items-center gap-2 rounded-md bg-lila-main px-4 py-2 text-sm font-bold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-lg bg-lila-main px-4 py-2.5 sm:py-2 min-h-[44px] text-sm font-bold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Sparkles className="h-4 w-4" />
               {loading ? 'Generando...' : 'Generar modelo'}
             </button>
           ) : (
-            <>
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
               <button
                 type="button"
                 onClick={handleGenerate}
                 disabled={loading || isListening || isProcessingSpeech}
-                className="px-4 py-2 text-sm font-semibold text-lila-main transition-colors hover:bg-lila-light/30 disabled:opacity-50"
+                className="w-full sm:w-auto px-4 py-2.5 sm:py-2 min-h-[44px] text-sm font-semibold text-lila-main transition-colors hover:bg-lila-light/30 rounded-lg disabled:opacity-50"
               >
                 Generar nuevamente
               </button>
               <button
                 type="button"
                 onClick={handleApply}
-                className="rounded-md bg-lila-main px-4 py-2 text-sm font-bold text-white transition-opacity hover:opacity-90"
+                className="w-full sm:w-auto rounded-lg bg-lila-main px-4 py-2.5 sm:py-2 min-h-[44px] text-sm font-bold text-white transition-opacity hover:opacity-90 flex items-center justify-center"
               >
                 Aplicar al diagrama
               </button>
-            </>
+            </div>
           )}
         </div>
       </div>

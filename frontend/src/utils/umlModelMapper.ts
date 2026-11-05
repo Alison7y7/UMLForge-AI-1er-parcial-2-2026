@@ -18,7 +18,8 @@ export interface EditorEdgeLike {
 
 export const buildUmlModel = (
   nodes: EditorNodeLike[],
-  edges: EditorEdgeLike[]
+  edges: EditorEdgeLike[],
+  advertencias: string[] = []
 ): UmlModelJson => ({
   clases: nodes.map(node => ({
     id: node.id,
@@ -42,7 +43,8 @@ export const buildUmlModel = (
     rolOrigen: edge.data?.rolOrigen as string || '',
     rolDestino: edge.data?.rolDestino as string || '',
     claseAsociacion: edge.data?.claseAsociacion as string || undefined
-  }))
+  })),
+  advertencias
 });
 
 export const relationData = (relation: UmlModelJson['relaciones'][number]) => ({

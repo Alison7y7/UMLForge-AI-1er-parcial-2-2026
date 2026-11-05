@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class FallbackUmlProviderTest {
 
@@ -21,6 +22,7 @@ class FallbackUmlProviderTest {
                 .containsExactly("Libro", "Usuario", "Prestamo");
         assertThat(result.model().relaciones()).hasSize(2);
         assertThat(result.tokensUsed()).isZero();
+        assertThat(provider.getName()).isEqualTo("fallback-local-template");
     }
 
     @Test
@@ -44,5 +46,27 @@ class FallbackUmlProviderTest {
                                 assertThat(attribute.tipo()).isEqualTo("Long");
                             }));
         }
+    }
+
+    @Test
+    void rejectsUnsupportedRequestInsteadOfReturningGenericSystem() {
+        assertThatThrownBy(() -> provider.generate("Generar sistema de reservas de vuelos"))
+                .isInstanceOf(IAProviderException.class)
+                .hasMessageContaining("no dispone de una plantilla compatible");
+    }
+
+    @Test
+    void ignoresDomainWordsFromExistingDiagramContext() {
+        String prompt = """
+                MODELO UML EXISTENTE:
+                {"clases":[{"nombre":"Libro"}]}
+
+                NUEVA SOLICITUD DEL USUARIO:
+                Elimina el atributo obsoleto
+                """;
+
+        assertThatThrownBy(() -> provider.generate(prompt))
+                .isInstanceOf(IAProviderException.class)
+                .hasMessageContaining("no dispone de una plantilla compatible");
     }
 }

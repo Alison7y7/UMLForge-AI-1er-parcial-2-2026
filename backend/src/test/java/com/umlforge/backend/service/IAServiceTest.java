@@ -11,6 +11,7 @@ import com.umlforge.backend.repository.UsuarioRepository;
 import com.umlforge.backend.service.ia.IAProvider;
 import com.umlforge.backend.service.ia.IAProviderException;
 import com.umlforge.backend.service.ia.IAProviderResult;
+import com.umlforge.backend.service.ia.FallbackUmlProvider;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import tools.jackson.databind.ObjectMapper;
@@ -19,6 +20,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -27,14 +29,14 @@ import static org.mockito.Mockito.when;
 class IAServiceTest {
 
     @Test
-    void usesNextProviderAndPersistsSuccessfulRequest() {
-        IAProvider ollama = provider("ollama", 10, true);
-        IAProvider gemini = provider("gemini", 20, true);
-        when(ollama.generate(org.mockito.ArgumentMatchers.anyString()))
-                .thenThrow(new IAProviderException("offline"));
+    void usesOllamaWhenGeminiFailsRecoverably() {
+        IAProvider gemini = provider("gemini", 10, true);
+        IAProvider ollama = provider("ollama", 20, true);
+        when(gemini.generate(org.mockito.ArgumentMatchers.anyString()))
+                .thenThrow(new IAProviderException("estado 429 (limite de solicitudes excedido)"));
 
         UmlModelDto model = validModel();
-        when(gemini.generate(org.mockito.ArgumentMatchers.anyString()))
+        when(ollama.generate(org.mockito.ArgumentMatchers.anyString()))
                 .thenReturn(new IAProviderResult(model, 25));
 
         UsuarioRepository usuarioRepository = mock(UsuarioRepository.class);
@@ -62,17 +64,115 @@ class IAServiceTest {
         IAModelResponse response = service.modelar(new IAModelRequest(3L, "biblioteca"), "user@test.com");
 
         assertThat(response.peticionId()).isEqualTo(11L);
-        assertThat(response.proveedor()).isEqualTo("gemini");
+        assertThat(response.proveedor()).isEqualTo("ollama");
         assertThat(response.modelo()).isSameAs(model);
         ArgumentCaptor<PeticionIA> captor = ArgumentCaptor.forClass(PeticionIA.class);
         verify(peticionRepository).save(captor.capture());
         assertThat(captor.getValue().getDiagrama()).isSameAs(diagrama);
         assertThat(captor.getValue().getUsuario()).isSameAs(usuario);
         assertThat(captor.getValue().getExitoso()).isTrue();
-        assertThat(captor.getValue().getResultadoJson()).contains("gemini", "clase-libro");
-        verify(gemini).generate(org.mockito.ArgumentMatchers.argThat(prompt ->
+        assertThat(captor.getValue().getResultadoJson()).contains("ollama", "clase-libro");
+        verify(ollama).generate(org.mockito.ArgumentMatchers.argThat(prompt ->
                 prompt.contains("MODELO UML EXISTENTE") && prompt.contains("biblioteca")
         ));
+    }
+
+    @Test
+    void geminiHasPriorityAndStopsBeforeOllama() {
+        IAProvider gemini = provider("gemini", 10, true);
+        IAProvider ollama = provider("ollama", 20, true);
+        when(gemini.generate("crear biblioteca"))
+                .thenReturn(new IAProviderResult(validModel(), 18));
+
+        UsuarioRepository usuarioRepository = mock(UsuarioRepository.class);
+        PeticionIARepository peticionRepository = mock(PeticionIARepository.class);
+        DiagramaService diagramaService = mock(DiagramaService.class);
+        Usuario usuario = new Usuario();
+        when(usuarioRepository.findByCorreo("user@test.com")).thenReturn(Optional.of(usuario));
+        when(peticionRepository.save(org.mockito.ArgumentMatchers.any(PeticionIA.class)))
+                .thenAnswer(invocation -> {
+                    PeticionIA entity = invocation.getArgument(0);
+                    entity.setId(13L);
+                    return entity;
+                });
+
+        IAService service = new IAService(
+                List.of(ollama, gemini), usuarioRepository, peticionRepository,
+                diagramaService, new UmlModelValidator(), new ObjectMapper()
+        );
+
+        IAModelResponse response = service.modelar(
+                new IAModelRequest(null, "crear biblioteca"), "user@test.com"
+        );
+
+        assertThat(response.proveedor()).isEqualTo("gemini");
+        verify(gemini).generate("crear biblioteca");
+        verify(ollama, never()).generate(org.mockito.ArgumentMatchers.anyString());
+    }
+
+    @Test
+    void doesNotReturnGenericModelWhenAllProvidersFail() {
+        IAProvider gemini = provider("gemini", 10, true);
+        IAProvider ollama = provider("ollama", 20, true);
+        when(gemini.generate(org.mockito.ArgumentMatchers.anyString()))
+                .thenThrow(new IAProviderException("servicio temporalmente no disponible"));
+        when(ollama.generate(org.mockito.ArgumentMatchers.anyString()))
+                .thenThrow(new IAProviderException("offline"));
+
+        UsuarioRepository usuarioRepository = mock(UsuarioRepository.class);
+        PeticionIARepository peticionRepository = mock(PeticionIARepository.class);
+        DiagramaService diagramaService = mock(DiagramaService.class);
+        Usuario usuario = new Usuario();
+        when(usuarioRepository.findByCorreo("user@test.com")).thenReturn(Optional.of(usuario));
+        when(peticionRepository.save(org.mockito.ArgumentMatchers.any(PeticionIA.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        IAService service = new IAService(
+                List.of(new FallbackUmlProvider(), ollama, gemini),
+                usuarioRepository, peticionRepository, diagramaService,
+                new UmlModelValidator(), new ObjectMapper()
+        );
+
+        assertThatThrownBy(() -> service.modelar(
+                new IAModelRequest(null, "Generar sistema de reservas de vuelos"), "user@test.com"
+        )).isInstanceOf(IAServiceException.class)
+                .hasMessageContaining("No fue posible generar");
+
+        ArgumentCaptor<PeticionIA> captor = ArgumentCaptor.forClass(PeticionIA.class);
+        verify(peticionRepository).save(captor.capture());
+        assertThat(captor.getValue().getExitoso()).isFalse();
+        assertThat(captor.getValue().getResultadoJson())
+                .contains("gemini", "ollama", "fallback-local-template")
+                .doesNotContain("clase-sistema");
+    }
+
+    @Test
+    void recordsConfigurationProblemWithoutLeakingSecret() {
+        IAProvider gemini = provider("gemini", 10, false);
+        when(gemini.getUnavailableReason()).thenReturn("API key no configurada");
+
+        UsuarioRepository usuarioRepository = mock(UsuarioRepository.class);
+        PeticionIARepository peticionRepository = mock(PeticionIARepository.class);
+        DiagramaService diagramaService = mock(DiagramaService.class);
+        Usuario usuario = new Usuario();
+        when(usuarioRepository.findByCorreo("user@test.com")).thenReturn(Optional.of(usuario));
+        when(peticionRepository.save(org.mockito.ArgumentMatchers.any(PeticionIA.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        IAService service = new IAService(
+                List.of(gemini), usuarioRepository, peticionRepository,
+                diagramaService, new UmlModelValidator(), new ObjectMapper()
+        );
+
+        assertThatThrownBy(() -> service.modelar(
+                new IAModelRequest(null, "crear biblioteca"), "user@test.com"
+        )).isInstanceOf(IAServiceException.class);
+
+        ArgumentCaptor<PeticionIA> captor = ArgumentCaptor.forClass(PeticionIA.class);
+        verify(peticionRepository).save(captor.capture());
+        assertThat(captor.getValue().getResultadoJson())
+                .contains("gemini", "API key no configurada")
+                .doesNotContain("GEMINI_API_KEY");
     }
 
     @Test

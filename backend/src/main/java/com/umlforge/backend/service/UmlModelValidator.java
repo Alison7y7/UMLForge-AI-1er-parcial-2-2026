@@ -22,7 +22,15 @@ public class UmlModelValidator {
     private static final Set<String> ALLOWED_VISIBILITIES = Set.of(
         "public",
         "private",
-        "protected"
+        "protected",
+        "unspecified"
+    );
+
+    private static final Set<String> ALLOWED_ATTRIBUTE_TYPE_ORIGINS = Set.of(
+        "IMAGEN",
+        "SUGERIDO",
+        "USUARIO",
+        "INDETERMINADO"
     );
 
     public void validate(UmlModelDto model) {
@@ -34,6 +42,13 @@ public class UmlModelValidator {
         List<UmlModelDto.UmlRelation> relations = requireList(model.relaciones(), "relaciones");
         Set<String> allIds = new HashSet<>();
         Set<String> classIds = new HashSet<>();
+        Set<String> associationClassIds = new HashSet<>();
+
+        requireList(model.advertencias(), "advertencias").forEach(warning -> {
+            if (warning == null || warning.isBlank()) {
+                throw new IllegalArgumentException("Las advertencias no pueden contener valores vacios.");
+            }
+        });
 
         for (UmlModelDto.UmlClass umlClass : classes) {
             if (umlClass == null) {
@@ -48,6 +63,7 @@ public class UmlModelValidator {
                 }
                 registerUniqueId(attribute.id(), "atributo", allIds);
                 validateVisibility(attribute.visibilidad(), "atributo " + attribute.id());
+                validateAttributeTypeOrigin(attribute);
             }
 
             for (UmlModelDto.UmlMethod method : requireList(umlClass.metodos(), "métodos")) {
@@ -80,6 +96,32 @@ public class UmlModelValidator {
                     "Tipo de relación UML no permitido en " + relation.id() + ": " + relation.tipo()
                 );
             }
+            String associationClassId = relation.claseAsociacion();
+            if (associationClassId != null && !associationClassId.isBlank()) {
+                if (!"ASOCIACION".equals(relation.tipo())) {
+                    throw new IllegalArgumentException(
+                        "Una clase de asociacion solo puede pertenecer a una relacion ASOCIACION: "
+                            + relation.id()
+                    );
+                }
+                if (!classIds.contains(associationClassId)) {
+                    throw new IllegalArgumentException(
+                        "La relacion " + relation.id()
+                            + " referencia una clase de asociacion inexistente: " + associationClassId
+                    );
+                }
+                if (associationClassId.equals(relation.origen())
+                        || associationClassId.equals(relation.destino())) {
+                    throw new IllegalArgumentException(
+                        "La clase de asociacion debe ser distinta de los extremos: " + relation.id()
+                    );
+                }
+                if (!associationClassIds.add(associationClassId)) {
+                    throw new IllegalArgumentException(
+                        "La clase de asociacion ya pertenece a otra relacion: " + associationClassId
+                    );
+                }
+            }
         }
     }
 
@@ -96,6 +138,24 @@ public class UmlModelValidator {
         if (!ALLOWED_VISIBILITIES.contains(visibility)) {
             throw new IllegalArgumentException(
                 "Visibilidad UML no permitida en " + elementDescription + ": " + visibility
+            );
+        }
+    }
+
+    private void validateAttributeTypeOrigin(UmlModelDto.UmlAttribute attribute) {
+        String origin = attribute.origenTipo();
+        if (origin == null || origin.isBlank()) {
+            return;
+        }
+        if (!ALLOWED_ATTRIBUTE_TYPE_ORIGINS.contains(origin)) {
+            throw new IllegalArgumentException(
+                "Origen de tipo no permitido en atributo " + attribute.id() + ": " + origin
+            );
+        }
+        if (!"INDETERMINADO".equals(origin)
+                && (attribute.tipo() == null || attribute.tipo().isBlank())) {
+            throw new IllegalArgumentException(
+                "El atributo " + attribute.id() + " requiere un tipo para el origen " + origin
             );
         }
     }

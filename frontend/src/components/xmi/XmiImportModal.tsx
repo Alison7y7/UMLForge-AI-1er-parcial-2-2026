@@ -85,17 +85,17 @@ export default function XmiImportModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-lg bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
-          <div>
-            <h2 className="text-lg font-bold text-gray-800">Importar modelo XMI</h2>
-            <p className="mt-1 text-xs text-gray-500">Enterprise Architect, UML 2.x y XMI 2.1</p>
+    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/50 p-2 sm:p-4 backdrop-blur-sm">
+      <div className="flex max-h-[92dvh] sm:max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-t-2xl sm:rounded-xl bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 sm:px-5 sm:py-4 shrink-0">
+          <div className="min-w-0">
+            <h2 className="text-base sm:text-lg font-bold text-gray-800 truncate">Importar modelo XMI</h2>
+            <p className="mt-0.5 text-xs text-gray-500 truncate">Enterprise Architect, UML 2.x y XMI 2.1</p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 text-gray-400 transition-colors hover:text-gray-700"
+            className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center text-gray-400 transition-colors hover:text-gray-700 shrink-0"
             aria-label="Cerrar"
             title="Cerrar"
           >
@@ -103,7 +103,7 @@ export default function XmiImportModal({
           </button>
         </div>
 
-        <div className="flex-1 space-y-5 overflow-y-auto p-5">
+        <div className="flex-1 space-y-4 sm:space-y-5 overflow-y-auto p-4 sm:p-5">
           <div>
             <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-gray-500">
               Archivo
@@ -151,11 +151,11 @@ export default function XmiImportModal({
           )}
         </div>
 
-        <div className="flex items-center justify-end gap-3 border-t border-gray-200 bg-gray-50 px-5 py-4">
+        <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 sm:gap-3 border-t border-gray-200 bg-gray-50 px-4 py-3 sm:px-5 sm:py-4 shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-sm font-semibold text-gray-600 transition-colors hover:text-gray-900"
+            className="w-full sm:w-auto px-4 py-2.5 sm:py-2 min-h-[44px] flex items-center justify-center text-sm font-semibold text-gray-600 transition-colors hover:text-gray-900"
           >
             Cancelar
           </button>
@@ -164,7 +164,7 @@ export default function XmiImportModal({
               type="button"
               onClick={handleAnalyze}
               disabled={!file || loading}
-              className="rounded-md bg-lila-main px-4 py-2 text-sm font-bold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+              className="w-full sm:w-auto rounded-lg bg-lila-main px-4 py-2.5 sm:py-2 min-h-[44px] text-sm font-bold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 flex items-center justify-center"
             >
               {loading ? 'Analizando...' : 'Analizar XMI'}
             </button>
@@ -172,7 +172,7 @@ export default function XmiImportModal({
             <button
               type="button"
               onClick={handleImport}
-              className="rounded-md bg-lila-main px-4 py-2 text-sm font-bold text-white transition-opacity hover:opacity-90"
+              className="w-full sm:w-auto rounded-lg bg-lila-main px-4 py-2.5 sm:py-2 min-h-[44px] text-sm font-bold text-white transition-opacity hover:opacity-90 flex items-center justify-center"
             >
               Importar al diagrama
             </button>

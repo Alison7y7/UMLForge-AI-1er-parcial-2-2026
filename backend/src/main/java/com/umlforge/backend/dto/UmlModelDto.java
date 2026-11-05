@@ -4,8 +4,17 @@ import java.util.List;
 
 public record UmlModelDto(
     List<UmlClass> clases,
-    List<UmlRelation> relaciones
+    List<UmlRelation> relaciones,
+    List<String> advertencias
 ) {
+    public UmlModelDto {
+        advertencias = advertencias == null ? List.of() : List.copyOf(advertencias);
+    }
+
+    public UmlModelDto(List<UmlClass> clases, List<UmlRelation> relaciones) {
+        this(clases, relaciones, List.of());
+    }
+
     public record UmlClass(
         String id,
         String nombre,
@@ -36,8 +45,17 @@ public record UmlModelDto(
         String id,
         String nombre,
         String tipo,
-        String visibilidad
-    ) {}
+        String visibilidad,
+        String origenTipo
+    ) {
+        public UmlAttribute(
+                String id,
+                String nombre,
+                String tipo,
+                String visibilidad) {
+            this(id, nombre, tipo, visibilidad, null);
+        }
+    }
 
     public record UmlMethod(
         String id,

@@ -1,10 +1,12 @@
-export type Visibility = 'public' | 'private' | 'protected';
+export type Visibility = 'public' | 'private' | 'protected' | 'unspecified';
+export type AttributeTypeOrigin = 'IMAGEN' | 'SUGERIDO' | 'USUARIO' | 'INDETERMINADO';
 
 export interface UmlAttribute {
   id: string;
   nombre: string;
   tipo: string;
   visibilidad: Visibility;
+  origenTipo?: AttributeTypeOrigin;
 }
 
 export interface UmlParameter {
@@ -51,5 +53,6 @@ export interface UmlRelation {
 export interface UmlModelJson {
   clases: UmlClass[];
   relaciones: UmlRelation[];
+  advertencias?: string[];
 }
 

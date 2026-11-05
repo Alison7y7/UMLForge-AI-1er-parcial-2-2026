@@ -10,6 +10,7 @@ import ProjectDiagrams from './pages/ProjectDiagrams';
 import UMLEditor from './pages/UMLEditor';
 import Proyectos from './pages/Proyectos';
 import Bitacora from './pages/Bitacora';
+import PwaUpdateToast from './components/pwa/PwaUpdateToast';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const token = useAuthStore((state) => state.token);
@@ -34,6 +35,9 @@ function PermissionRoute({ children, permission }: { children: React.ReactNode, 
 export default function App() {
   return (
     <BrowserRouter>
+      {/* Notificación de actualizaciones PWA disponible en toda la plataforma */}
+      <PwaUpdateToast />
+
       <Routes>
         <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
         <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
@@ -50,4 +54,3 @@ export default function App() {
     </BrowserRouter>
   );
 }
-

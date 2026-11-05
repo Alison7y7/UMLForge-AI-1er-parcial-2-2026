@@ -2,6 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { Bot, Image as ImageIcon, Upload, X } from 'lucide-react';
 import type { UmlModelJson } from '../../types/uml';
 import {
+  attributeTypeOriginLabel,
+  updatePreviewAttributeType
+} from '../../utils/imageAttributeTypes';
+import {
   obtenerMensajeErrorImagen,
   reconstruirDiagramaDesdeImagen,
   type ImageUmlResponse
@@ -84,6 +88,10 @@ export default function ImageUmlImportModal({
     setResult(null);
     try {
       const response = await reconstruirDiagramaDesdeImagen({ archivo: file, diagramaId });
+      if (response.proveedor.startsWith('fallback-local-image')) {
+        setError('Una plantilla local no puede considerarse reconocimiento visual. El diagrama no fue modificado.');
+        return;
+      }
       setResult(response);
     } catch (requestError: unknown) {
       setError(obtenerMensajeErrorImagen(requestError));
@@ -105,24 +113,35 @@ export default function ImageUmlImportModal({
     onApply(result.modelo);
   };
 
+  const handleAttributeTypeChange = (
+    classId: string,
+    attributeId: string,
+    type: string
+  ) => {
+    setResult(current => current ? {
+      ...current,
+      modelo: updatePreviewAttributeType(current.modelo, classId, attributeId, type)
+    } : current);
+  };
+
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/50 p-2 sm:p-4 backdrop-blur-sm">
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="image-uml-title"
-        className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-lg bg-white shadow-xl"
+        className="flex max-h-[92dvh] sm:max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl sm:rounded-xl bg-white shadow-xl"
       >
-        <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-lila-light/50 text-lila-main">
+        <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 sm:px-5 sm:py-4 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <div className="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl bg-lila-light/50 text-lila-main">
               <ImageIcon className="h-5 w-5" />
             </div>
-            <div>
-              <h2 id="image-uml-title" className="text-lg font-bold text-gray-800">
+            <div className="min-w-0">
+              <h2 id="image-uml-title" className="text-base sm:text-lg font-bold text-gray-800 truncate">
                 Reconstruir diagrama desde imagen
               </h2>
-              <p className="mt-1 text-xs text-gray-500">
+              <p className="mt-0.5 text-xs text-gray-500 truncate">
                 Sube una imagen UML y revisa el resultado antes de aplicarlo.
               </p>
             </div>
@@ -131,7 +150,7 @@ export default function ImageUmlImportModal({
             type="button"
             onClick={onClose}
             disabled={loading}
-            className="p-1.5 text-gray-400 transition-colors hover:text-gray-700 disabled:opacity-50"
+            className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center text-gray-400 transition-colors hover:text-gray-700 disabled:opacity-50 shrink-0"
             aria-label="Cerrar"
             title="Cerrar"
           >
@@ -139,7 +158,7 @@ export default function ImageUmlImportModal({
           </button>
         </div>
 
-        <div className="flex-1 space-y-5 overflow-y-auto p-5">
+        <div className="flex-1 space-y-4 sm:space-y-5 overflow-y-auto p-4 sm:p-5">
           <div>
             <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-gray-500">
               Imagen del diagrama UML
@@ -185,6 +204,16 @@ export default function ImageUmlImportModal({
 
           {result && summary && (
             <div className="space-y-5 border-t border-gray-200 pt-5">
+              {(result.modelo.advertencias?.length || 0) > 0 && (
+                <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                  <div className="font-bold">Información pendiente de revisión</div>
+                  <ul className="mt-2 list-disc space-y-1 pl-5">
+                    {result.modelo.advertencias?.map((warning, index) => (
+                      <li key={`${index}-${warning}`}>{warning}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                   <Bot className="h-5 w-5 text-lila-main" />
@@ -227,8 +256,33 @@ export default function ImageUmlImportModal({
                       <div className="font-bold text-gray-800">{umlClass.nombre}</div>
                       <div className="mt-2 space-y-1 text-xs text-gray-600">
                         {umlClass.atributos.length > 0 ? umlClass.atributos.map(attribute => (
-                          <div key={attribute.id} className="font-mono">
-                            {attribute.nombre}: {attribute.tipo}
+                          <div key={attribute.id} className="rounded border border-gray-100 bg-gray-50 p-2">
+                            <label className="flex items-center gap-1 font-mono">
+                              <span className="shrink-0">{attribute.nombre}:</span>
+                              <input
+                                type="text"
+                                value={attribute.tipo}
+                                onChange={event => handleAttributeTypeChange(
+                                  umlClass.id,
+                                  attribute.id,
+                                  event.target.value
+                                )}
+                                placeholder="Tipo pendiente"
+                                aria-label={`Tipo de ${attribute.nombre}`}
+                                className="min-w-0 flex-1 rounded border border-gray-200 bg-white px-1.5 py-1 font-mono text-xs text-gray-700 outline-none focus:border-lila-main"
+                              />
+                            </label>
+                            <div className={`mt-1 text-[10px] font-semibold ${
+                              attribute.origenTipo === 'SUGERIDO'
+                                ? 'text-amber-700'
+                                : attribute.origenTipo === 'IMAGEN'
+                                  ? 'text-emerald-700'
+                                  : attribute.origenTipo === 'USUARIO'
+                                    ? 'text-blue-700'
+                                    : 'text-gray-500'
+                            }`}>
+                              {attributeTypeOriginLabel(attribute)}
+                            </div>
                           </div>
                         )) : <div className="italic text-gray-400">Sin atributos</div>}
                       </div>
@@ -253,8 +307,13 @@ export default function ImageUmlImportModal({
                           {summary.classNames.get(relation.destino) || relation.destino}
                         </span>
                         <span className="ml-2 text-gray-500">
-                          ({relation.multiplicidadOrigen} / {relation.multiplicidadDestino})
+                          ({relation.multiplicidadOrigen || 'por revisar'} / {relation.multiplicidadDestino || 'por revisar'})
                         </span>
+                        {relation.claseAsociacion && (
+                          <span className="ml-2 font-semibold text-amber-700">
+                            Clase de asociación: {summary.classNames.get(relation.claseAsociacion) || relation.claseAsociacion}
+                          </span>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -268,12 +327,12 @@ export default function ImageUmlImportModal({
           )}
         </div>
 
-        <div className="flex items-center justify-end gap-3 border-t border-gray-200 bg-gray-50 px-5 py-4">
+        <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 sm:gap-3 border-t border-gray-200 bg-gray-50 px-4 py-3 sm:px-5 sm:py-4 shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <button
             type="button"
             onClick={onClose}
             disabled={loading}
-            className="px-4 py-2 text-sm font-semibold text-gray-600 transition-colors hover:text-gray-900 disabled:opacity-50"
+            className="w-full sm:w-auto px-4 py-2.5 sm:py-2 min-h-[44px] flex items-center justify-center text-sm font-semibold text-gray-600 transition-colors hover:text-gray-900 disabled:opacity-50"
           >
             Cancelar
           </button>
@@ -282,28 +341,28 @@ export default function ImageUmlImportModal({
               type="button"
               onClick={handleAnalyze}
               disabled={!file || loading}
-              className="rounded-md bg-lila-main px-4 py-2 text-sm font-bold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+              className="w-full sm:w-auto rounded-lg bg-lila-main px-4 py-2.5 sm:py-2 min-h-[44px] text-sm font-bold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 flex items-center justify-center"
             >
               {loading ? 'Analizando...' : 'Analizar imagen'}
             </button>
           ) : (
-            <>
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
               <button
                 type="button"
                 onClick={handleAnalyze}
                 disabled={loading}
-                className="px-4 py-2 text-sm font-semibold text-lila-main transition-colors hover:bg-lila-light/30 disabled:opacity-50"
+                className="w-full sm:w-auto px-4 py-2.5 sm:py-2 min-h-[44px] text-sm font-semibold text-lila-main transition-colors hover:bg-lila-light/30 rounded-lg disabled:opacity-50"
               >
                 Analizar nuevamente
               </button>
               <button
                 type="button"
                 onClick={handleApply}
-                className="rounded-md bg-lila-main px-4 py-2 text-sm font-bold text-white transition-opacity hover:opacity-90"
+                className="w-full sm:w-auto rounded-lg bg-lila-main px-4 py-2.5 sm:py-2 min-h-[44px] text-sm font-bold text-white transition-opacity hover:opacity-90 flex items-center justify-center"
               >
                 Aplicar al diagrama
               </button>
-            </>
+            </div>
           )}
         </div>
       </div>

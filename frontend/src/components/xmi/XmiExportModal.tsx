@@ -60,22 +60,22 @@ export default function XmiExportModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/50 p-2 sm:p-4 backdrop-blur-sm">
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="xmi-export-title"
-        className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-lg bg-white shadow-xl"
+        className="flex max-h-[92dvh] sm:max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-t-2xl sm:rounded-xl bg-white shadow-xl"
       >
-        <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
-          <div>
-            <h2 id="xmi-export-title" className="text-lg font-bold text-gray-800">Exportar modelo XMI</h2>
-            <p className="mt-1 text-xs text-gray-500">Enterprise Architect, UML 2.x y XMI 2.1</p>
+        <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 sm:px-5 sm:py-4 shrink-0">
+          <div className="min-w-0">
+            <h2 id="xmi-export-title" className="text-base sm:text-lg font-bold text-gray-800 truncate">Exportar modelo XMI</h2>
+            <p className="mt-0.5 text-xs text-gray-500 truncate">Enterprise Architect, UML 2.x y XMI 2.1</p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 text-gray-400 transition-colors hover:text-gray-700"
+            className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center text-gray-400 transition-colors hover:text-gray-700 shrink-0"
             aria-label="Cerrar"
             title="Cerrar"
           >
@@ -111,11 +111,11 @@ export default function XmiExportModal({
           )}
         </div>
 
-        <div className="flex items-center justify-end gap-3 border-t border-gray-200 bg-gray-50 px-5 py-4">
+        <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 sm:gap-3 border-t border-gray-200 bg-gray-50 px-4 py-3 sm:px-5 sm:py-4 shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-sm font-semibold text-gray-600 transition-colors hover:text-gray-900"
+            className="w-full sm:w-auto px-4 py-2.5 sm:py-2 min-h-[44px] flex items-center justify-center text-sm font-semibold text-gray-600 transition-colors hover:text-gray-900"
           >
             Cancelar
           </button>
@@ -123,7 +123,7 @@ export default function XmiExportModal({
             type="button"
             onClick={handleDownload}
             disabled={model.clases.length === 0 || loading}
-            className="flex items-center gap-2 rounded-md bg-lila-main px-4 py-2 text-sm font-bold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-lg bg-lila-main px-4 py-2.5 sm:py-2 min-h-[44px] text-sm font-bold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Download className="h-4 w-4" />
             {loading ? 'Generando XMI...' : 'Descargar XMI'}
