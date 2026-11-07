@@ -10,6 +10,8 @@ import java.util.List;
 public interface ParticipanteProyectoRepository extends JpaRepository<ParticipanteProyecto, Long> {
     List<ParticipanteProyecto> findByProyectoId(Long proyectoId);
     List<ParticipanteProyecto> findByUsuarioId(Long usuarioId);
+    List<ParticipanteProyecto> findByUsuarioIdAndActivoTrue(Long usuarioId);
     boolean existsByProyectoIdAndUsuarioId(Long proyectoId, Long usuarioId);
+    boolean existsByProyectoIdAndUsuarioIdAndActivoTrue(Long proyectoId, Long usuarioId);
     void deleteByProyectoIdAndUsuarioId(Long proyectoId, Long usuarioId);
 }

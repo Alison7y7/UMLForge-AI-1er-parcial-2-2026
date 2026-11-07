@@ -11,7 +11,9 @@ RUN mvn -B -q -Dmaven.test.skip=true package \
 
 FROM eclipse-temurin:17-jre-alpine AS runtime
 
-RUN addgroup -S umlforge && adduser -S umlforge -G umlforge
+RUN addgroup -S umlforge && adduser -S umlforge -G umlforge \
+    && mkdir -p /data/chat-attachments \
+    && chown -R umlforge:umlforge /data/chat-attachments
 
 WORKDIR /app
 COPY --from=build --chown=umlforge:umlforge /workspace/application.jar /app/application.jar

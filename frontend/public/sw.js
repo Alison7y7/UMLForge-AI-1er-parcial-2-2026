@@ -1,5 +1,5 @@
 /* UMLForge AI - Service Worker (Fase 1: Base PWA e Instalabilidad) */
-const CACHE_NAME = 'umlforge-static-v1.0.0';
+const CACHE_NAME = 'umlforge-static-v1.0.2';
 
 // Recursos estáticos mínimos requeridos para arrancar el App Shell
 const STATIC_PRECACHE = [
@@ -16,8 +16,9 @@ const STATIC_PRECACHE = [
   '/icons/apple-touch-icon.png'
 ];
 
-// 1. INSTALACIÓN
+// 1. INSTALACIÓN (Skip waiting inmediato para activar cambios de CU16)
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(STATIC_PRECACHE).catch((err) => {

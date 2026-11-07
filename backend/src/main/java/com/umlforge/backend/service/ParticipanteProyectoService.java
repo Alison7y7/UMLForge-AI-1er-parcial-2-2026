@@ -23,10 +23,10 @@ public class ParticipanteProyectoService {
     private final ProyectoRepository proyectoRepository;
     private final UsuarioRepository usuarioRepository;
     private final BitacoraService bitacoraService;
+    private final ProjectAccessService projectAccessService;
 
     public List<ParticipanteResponse> listarParticipantes(Long proyectoId, Usuario actor) {
-        Proyecto proyecto = proyectoRepository.findById(proyectoId).orElseThrow(() -> new RuntimeException("Proyecto no encontrado"));
-        // Opcional: Validar si actor tiene permisos para ver
+        projectAccessService.requireProjectAccess(proyectoId, actor);
         return participanteRepository.findByProyectoId(proyectoId).stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());

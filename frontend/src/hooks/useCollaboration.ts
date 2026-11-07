@@ -1,18 +1,17 @@
 // @ts-nocheck
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Client } from '@stomp/stompjs';
-import SockJS from 'sockjs-client';
 import { useAuthStore } from '../store/authStore';
 import { useEditorStore } from '../store/editorStore';
+import { stompService } from '../services/stompService';
 
 export function useCollaboration(diagramaId: string | undefined) {
   const { token, user } = useAuthStore();
   const { nodes, edges, setNodes, setEdges } = useEditorStore();
   
-  const clientRef = useRef<Client | null>(null);
   const [connectedUsers, setConnectedUsers] = useState<any[]>([]);
   const [presenceReceived, setPresenceReceived] = useState(false);
   const [historyEvents, setHistoryEvents] = useState<any[]>([]);
+  const [diagramModelUpdate, setDiagramModelUpdate] = useState<any | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<'Conectando...' | 'Sincronizado' | 'Reconectando...' | 'Sin conexión'>('Sin conexión');
 
   const nodesRef = useRef(nodes);
@@ -38,6 +37,11 @@ export function useCollaboration(diagramaId: string | undefined) {
 
     if (event.tipoEvento === 'HISTORY_UPDATE') {
       setHistoryEvents(Array.isArray(event.payload) ? event.payload : []);
+      return;
+    }
+
+    if (event.tipoEvento === 'DIAGRAM_MODEL_UPDATED') {
+      setDiagramModelUpdate(event);
       return;
     }
 
@@ -108,72 +112,44 @@ export function useCollaboration(diagramaId: string | undefined) {
       return;
     }
 
-    let isIntentionalDisconnect = false;
     setConnectedUsers([]);
     setPresenceReceived(false);
     setConnectionStatus('Conectando...');
 
-    const client = new Client({
-      webSocketFactory: () => new SockJS(
-        import.meta.env.VITE_WS_URL || 'http://localhost:8080/ws-uml'
-      ),
-      connectHeaders: {
-        Authorization: `Bearer ${token}`
-      },
-      reconnectDelay: 5000,
-      onConnect: () => {
-        if (isIntentionalDisconnect) {
-          void client.deactivate();
-          return;
-        }
+    const destination = `/topic/diagramas/${diagramaId}`;
 
+    const unsubStatus = stompService.addStatusListener((status) => {
+      setConnectionStatus(status);
+      if (status === 'Sincronizado') {
+        stompService.publish(`/app/diagramas/${diagramaId}/join`, {});
+        stompService.publish(`/app/diagramas/${diagramaId}/presence`, {});
+      } else {
         setPresenceReceived(false);
-        client.subscribe(`/topic/diagramas/${diagramaId}`, (message) => {
-          if (isIntentionalDisconnect) return;
-          const event = JSON.parse(message.body);
-          handleRemoteEvent(event);
-        });
-
-        client.publish({ destination: `/app/diagramas/${diagramaId}/join`, body: JSON.stringify({}) });
-        client.publish({ destination: `/app/diagramas/${diagramaId}/presence`, body: JSON.stringify({}) });
-      },
-      onStompError: () => {
-        if (!isIntentionalDisconnect) {
-          setPresenceReceived(false);
-          setConnectionStatus('Sin conexión');
-        }
-      },
-      onWebSocketClose: () => {
-        if (!isIntentionalDisconnect) {
-          setPresenceReceived(false);
-          setConnectionStatus('Reconectando...');
-        }
       }
     });
 
-    clientRef.current = client;
-    client.activate();
+    const unsubTopic = stompService.subscribe(destination, (event) => {
+      handleRemoteEvent(event);
+    });
+
+    if (stompService.getStatus() === 'Sincronizado') {
+      stompService.publish(`/app/diagramas/${diagramaId}/join`, {});
+      stompService.publish(`/app/diagramas/${diagramaId}/presence`, {});
+    }
 
     return () => {
-      isIntentionalDisconnect = true;
-      if (clientRef.current === client) {
-        clientRef.current = null;
-      }
-      void client.deactivate();
+      unsubStatus();
+      unsubTopic();
     };
   }, [diagramaId, token, user, handleRemoteEvent]);
 
   const broadcastEvent = useCallback((tipoEvento: string, elementoId: string, payload: any = null) => {
-    if (clientRef.current && clientRef.current.connected) {
-      clientRef.current.publish({
-        destination: `/app/diagramas/${diagramaId}/event`,
-        body: JSON.stringify({ tipoEvento, elementoId, payload })
-      });
-    }
+    stompService.publish(`/app/diagramas/${diagramaId}/event`, { tipoEvento, elementoId, payload });
   }, [diagramaId]);
 
   return {
     historyEvents,
+    diagramModelUpdate,
     connectedUsers,
     presenceReceived,
     connectionStatus,

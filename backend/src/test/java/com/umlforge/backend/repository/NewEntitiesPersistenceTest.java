@@ -32,6 +32,90 @@ class NewEntitiesPersistenceTest {
     @Autowired
     private DiagramaRepository diagramaRepository;
 
+    @Autowired
+    private MensajeChatProyectoRepository mensajeChatProyectoRepository;
+
+    @Autowired
+    private SolicitudIAChatProyectoRepository solicitudIAChatProyectoRepository;
+
+    @Test
+    void testSaveAndRecoverCollaborativeAiRequest() {
+        Usuario user = new Usuario();
+        user.setNombre("AI");
+        user.setApellido("Requester");
+        user.setCorreo("ai-request-persistence@test.com");
+        user.setPassword("password");
+        user.setActivo(true);
+        user = usuarioRepository.saveAndFlush(user);
+
+        Proyecto proyecto = new Proyecto();
+        proyecto.setNombre("AI project");
+        proyecto.setAnfitrion(user);
+        proyecto.setActivo(true);
+        proyecto = proyectoRepository.saveAndFlush(proyecto);
+
+        Diagrama diagrama = new Diagrama();
+        diagrama.setNombre("AI diagram");
+        diagrama.setProyecto(proyecto);
+        diagrama.setActivo(true);
+        diagrama.setModeloJson("{\"clases\":[],\"relaciones\":[]}");
+        diagrama = diagramaRepository.saveAndFlush(diagrama);
+
+        MensajeChatProyecto pregunta = new MensajeChatProyecto();
+        pregunta.setProyecto(proyecto);
+        pregunta.setUsuarioEmisor(user);
+        pregunta.setTipoEmisor(TipoEmisorChat.USUARIO);
+        pregunta.setContenido("Revisa el diagrama");
+        pregunta.setEstado(EstadoMensajeChat.ENVIADO);
+        pregunta = mensajeChatProyectoRepository.saveAndFlush(pregunta);
+
+        SolicitudIAChatProyecto solicitud = new SolicitudIAChatProyecto();
+        solicitud.setSolicitudId("550e8400-e29b-41d4-a716-446655440000");
+        solicitud.setProyecto(proyecto);
+        solicitud.setDiagrama(diagrama);
+        solicitud.setMensajeUsuario(pregunta);
+        solicitud.setSolicitante(user);
+        solicitud.setEstado(EstadoSolicitudIAChat.PROCESANDO);
+        assertThat(solicitudIAChatProyectoRepository.bloquearProyecto(proyecto.getId())).isEqualTo(1);
+        solicitudIAChatProyectoRepository.saveAndFlush(solicitud);
+
+        assertThat(solicitudIAChatProyectoRepository.findByProyectoIdAndSolicitudId(
+                proyecto.getId(), solicitud.getSolicitudId())).isPresent();
+    }
+
+    @Test
+    void testSaveAndRecoverProjectChatMessage() {
+        Usuario user = new Usuario();
+        user.setNombre("Chat");
+        user.setApellido("User");
+        user.setCorreo("chat-persistence@test.com");
+        user.setPassword("password");
+        user.setActivo(true);
+        user = usuarioRepository.saveAndFlush(user);
+
+        Proyecto proyecto = new Proyecto();
+        proyecto.setNombre("Chat project");
+        proyecto.setAnfitrion(user);
+        proyecto.setActivo(true);
+        proyecto = proyectoRepository.saveAndFlush(proyecto);
+
+        MensajeChatProyecto mensaje = new MensajeChatProyecto();
+        mensaje.setProyecto(proyecto);
+        mensaje.setUsuarioEmisor(user);
+        mensaje.setTipoEmisor(TipoEmisorChat.USUARIO);
+        mensaje.setContenido("Mensaje persistente");
+        mensaje.setEstado(EstadoMensajeChat.ENVIADO);
+        MensajeChatProyecto saved = mensajeChatProyectoRepository.saveAndFlush(mensaje);
+
+        assertThat(saved.getId()).isNotNull();
+        assertThat(saved.getFechaHora()).isNotNull();
+        assertThat(saved.getCorrelacionId()).isNotBlank();
+        assertThat(mensajeChatProyectoRepository.findByProyectoId(
+                proyecto.getId(), org.springframework.data.domain.PageRequest.of(0, 10)).getContent())
+                .extracting(MensajeChatProyecto::getContenido)
+                .contains("Mensaje persistente");
+    }
+
     @Test
     void testSavePeticionIA() {
         Usuario user = new Usuario();

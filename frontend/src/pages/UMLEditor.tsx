@@ -33,7 +33,8 @@ import {
   FileText,
   FileCode,
   Smartphone,
-  Mic
+  Mic,
+  MessageSquare
 } from 'lucide-react';
 
 import { useVoiceRecognition } from '../hooks/useVoiceRecognition';
@@ -66,6 +67,7 @@ import {
   saveDiagramModel
 } from '../utils/editorPersistence';
 import { useCollaboration } from '../hooks/useCollaboration';
+import ProjectChat from '../components/chat/ProjectChat';
 
 const nodeTypes = { umlClass: UmlClassNode };
 const edgeTypes = { umlRelation: UmlRelationEdge };
@@ -129,11 +131,11 @@ export default function UMLEditor() {
   const canEdit = !user || userPermissions.includes('EDITAR_DIAGRAMAS') || isRoleAdmin(userRole) || isRoleAnfitrion(userRole) || isRoleColaborador(userRole);
   
   const {
-    historyEvents, connectedUsers, presenceReceived, connectionStatus,
+    historyEvents, diagramModelUpdate, connectedUsers, presenceReceived, connectionStatus,
     broadcastEvent
   } = useCollaboration(id);
 
-  const [rightTab, setRightTab] = useState<'inspector' | 'colaboracion'>('inspector');
+  const [rightTab, setRightTab] = useState<'inspector' | 'colaboracion' | 'chat'>('inspector');
   const [showHistory, setShowHistory] = useState(false);
   const [showXmiImport, setShowXmiImport] = useState(false);
   const [showXmiExport, setShowXmiExport] = useState(false);
@@ -188,6 +190,8 @@ export default function UMLEditor() {
   const [proyectoId, setProyectoId] = useState<number | null>(null);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
   const [saveError, setSaveError] = useState('');
+  const [diagramVersion, setDiagramVersion] = useState<number | undefined>(undefined);
+  const [remoteConflict, setRemoteConflict] = useState('');
   const [loadError, setLoadError] = useState('');
   const [modelWarnings, setModelWarnings] = useState<string[]>([]);
   const [loadAttempt, setLoadAttempt] = useState(0);
@@ -252,6 +256,7 @@ export default function UMLEditor() {
         const { data } = await api.get(`/diagramas/${id}`);
         setNombreDiagrama(data.nombre);
         setProyectoId(data.proyectoId);
+        setDiagramVersion(data.version);
         const parsed: UmlModelJson = data.modeloJson
           ? parsePersistedModel(data.modeloJson)
           : { clases: [], relaciones: [], advertencias: [] };
@@ -268,6 +273,7 @@ export default function UMLEditor() {
         setNodes(loaded.nodes);
         setEdges(loadedEdges);
         setSaveError('');
+        setRemoteConflict('');
         setSaveStatus('saved');
         if (loaded.nodes.length > 0) setFitViewRequest(value => value + 1);
       } catch (error) {
@@ -288,6 +294,32 @@ export default function UMLEditor() {
     
     fetchDiagrama();
   }, [id, loadAttempt, setNodes, setEdges]);
+
+  useEffect(() => {
+    if (!diagramModelUpdate?.payload?.modeloJson) return;
+    if (saveStatus !== 'saved') {
+      setRemoteConflict('El diagrama cambió en otra sesión. Tus cambios locales se conservaron; guárdalos en otro lugar o recarga para resolver el conflicto.');
+      return;
+    }
+    try {
+      const parsed = parsePersistedModel(diagramModelUpdate.payload.modeloJson);
+      const loaded = modelToEditorElements(parsed);
+      const loadedEdges = loaded.edges.map(edge => ({
+        ...edge,
+        markerEnd: getMarkerEnd(edge.data?.tipo as string)
+      }));
+      const normalized = modelFromEditorElements(loaded.nodes, loadedEdges, parsed.advertencias || []);
+      lastSavedSnapshotRef.current = diagramSnapshot(nombreDiagramaRef.current, normalized);
+      setModelWarnings(parsed.advertencias || []);
+      setNodes(loaded.nodes);
+      setEdges(loadedEdges);
+      setDiagramVersion(diagramModelUpdate.payload.version);
+      setRemoteConflict('');
+      setSaveStatus('saved');
+    } catch {
+      setRemoteConflict('Se recibió una actualización remota inválida; el canvas local no fue modificado.');
+    }
+  }, [diagramModelUpdate, saveStatus, setNodes, setEdges]);
 
   useEffect(() => {
     if (!reactFlowInstance || fitViewRequest === 0) return;
@@ -321,7 +353,8 @@ export default function UMLEditor() {
     setSaveStatus('saving');
     setSaveError('');
     try {
-      await saveDiagramModel(api, id, nombreGuardado, modelo);
+      const newVersion = await saveDiagramModel(api, id, nombreGuardado, modelo, diagramVersion);
+      if (newVersion !== undefined) setDiagramVersion(newVersion);
       lastSavedSnapshotRef.current = submittedSnapshot;
 
       const currentState = useEditorStore.getState();
@@ -332,7 +365,10 @@ export default function UMLEditor() {
     } catch (error) {
       console.error('Error guardando:', error);
       setSaveStatus('error');
-      setSaveError('No se pudo guardar el diagrama. Los cambios siguen visibles y puedes reintentar.');
+      const conflict = error?.response?.status === 409;
+      setSaveError(conflict
+        ? 'El diagrama cambió en otra sesión. Tus cambios siguen visibles; recarga o resuelve el conflicto antes de guardar.'
+        : 'No se pudo guardar el diagrama. Los cambios siguen visibles y puedes reintentar.');
       return false;
     }
   };
@@ -1023,7 +1059,7 @@ export default function UMLEditor() {
           </div>
 
           {canEdit && (
-            <button 
+            <button
               onClick={() => handleDeleteClass(selectedNode)}
               className="w-full mt-4 py-2.5 min-h-[44px] bg-red-50 text-red-600 rounded-xl text-sm font-bold hover:bg-red-100 active:scale-98 transition-colors flex items-center justify-center gap-2"
             >
@@ -1229,120 +1265,176 @@ export default function UMLEditor() {
           </span>
         </div>
 
-        <div ref={rightRef} className="flex items-center gap-1.5 md:gap-3 shrink-0">
+        <div ref={rightRef} className="flex items-center gap-1.5 md:gap-2.5 shrink-0">
           {/* Indicador de conexión en escritorio */}
-          <div className={`hidden md:flex items-center gap-2 border-r border-gray-200 pr-3 ${menuMode === 'compact' ? '!hidden' : ''}`}>
+          <div className="hidden md:flex items-center gap-2 border-r border-gray-200 pr-2.5">
             <span className={`flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider ${connectionStatus === 'Sin conexión' ? 'text-red-500' : connectionStatus === 'Sincronizado' ? 'text-green-500' : 'text-yellow-500'}`}>
               <div className={`w-2 h-2 rounded-full ${connectionStatus === 'Sin conexión' ? 'bg-red-500' : connectionStatus === 'Sincronizado' ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
               {connectionStatus === 'Sincronizado'
-                ? `En línea · ${connectedUsers.length}`
+                ? (presenceReceived ? `En línea · ${connectedUsers.length}` : 'Actualizando presencia…')
                 : connectionStatus}
             </span>
             {connectionStatus === "Sincronizado" && connectedUsers.length > 0 && (
-              <div className="flex items-center gap-1 ml-2">
+              <div className="flex items-center gap-1 ml-1.5">
                 <div className="flex -space-x-1.5">
-                  {connectedUsers.map(u => (
-                    <div key={u.id} title={`${u.nombre} — ${formatRole(u.rol)}`} className="w-7 h-7 rounded-full bg-lila-light border-2 border-white flex items-center justify-center text-[10px] font-bold text-lila-main">
+                  {connectedUsers.slice(0, 3).map(u => (
+                    <div key={u.id} title={`${u.nombre} — ${formatRole(u.rol)}`} className="w-6 h-6 rounded-full bg-lila-light border-2 border-white flex items-center justify-center text-[9px] font-bold text-lila-main">
                       {getInitials(u.nombre)}
                     </div>
                   ))}
+                  {connectedUsers.length > 3 && (
+                    <div className="w-6 h-6 rounded-full bg-gray-100 border-2 border-white flex items-center justify-center text-[9px] font-bold text-gray-500">
+                      +{connectedUsers.length - 3}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
           </div>
           
-          {/* Acciones principales en escritorio */}
-          <div className={`hidden lg:flex items-center gap-1 ${menuMode === 'compact' ? '!hidden' : ''}`}>
-            <button onClick={() => setShowHistory(true)} className="px-3 py-1.5 text-xs font-bold text-lila-main bg-lila-light/10 hover:bg-lila-light/20 rounded-lg transition-colors">Actividad</button>
-            <button onClick={() => setShowIaModal(true)} className="px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">Asistente IA</button>
-            <button onClick={() => setShowImageModal(true)} className="px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">Imagen</button>
-            <button onClick={() => setShowXmiImport(true)} className="px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">Importar XMI</button>
-            <button onClick={() => setShowXmiExport(true)} className="px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">Exportar XMI</button>
-            <button onClick={() => setShowGenerateBackendModal(true)} disabled={isGeneratingBackend} className="px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50">
-              {isGeneratingBackend ? 'Generando...' : 'Backend'}
-            </button>
-            <button onClick={() => setShowGenerateMobileModal(true)} disabled={isGeneratingMobile} className="px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50">
-              {isGeneratingMobile ? 'Generando...' : 'App Flutter'}
-            </button>
+          {/* Acciones colaborativas visibles en barra superior */}
+          <div className="flex items-center gap-1 sm:gap-1.5">
+            {/* 1. Botón de Chat destacado */}
             <button 
+              type="button"
+              onClick={() => {
+                setRightTab('chat');
+                setIsRightPanelOpen(true);
+              }}
+              className={`px-2.5 sm:px-3 py-1.5 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 ${
+                rightTab === 'chat'
+                  ? 'bg-gradient-to-r from-lila-main to-pink-main text-white shadow-xs'
+                  : 'text-lila-main bg-lila-light/25 hover:bg-lila-light/45 border border-lila-light/40'
+              }`}
+              title="Abrir chat colaborativo del proyecto"
+            >
+              <MessageSquare className="w-4 h-4" />
+              <span className="hidden xs:inline">Chat</span>
+            </button>
+
+            {/* 2. Botón de Control por Voz */}
+            <button
+              type="button"
               onClick={handleOpenVoice}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 ${
+              className={`px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-xl transition-colors flex items-center gap-1.5 ${
                 voiceRecognition.state === 'escuchando'
                   ? 'bg-red-100 text-red-600 animate-pulse font-bold'
-                  : 'text-gray-600 hover:bg-gray-100'
+                  : 'text-gray-700 hover:bg-gray-100'
               }`}
               title="Comandos por voz"
             >
               <Mic className={`w-4 h-4 ${voiceRecognition.state === 'escuchando' ? 'text-red-500' : 'text-lila-main'}`} />
-              <span>Voz</span>
+              <span className="hidden sm:inline">Voz</span>
+            </button>
+
+            {/* 3. Botón de Historial de Actividad (visible en pantallas grandes) */}
+            <button
+              type="button"
+              onClick={() => setShowHistory(true)}
+              className="hidden lg:flex px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-100 rounded-xl transition-colors items-center gap-1.5"
+              title="Historial de actividad"
+            >
+              <Users className="w-3.5 h-3.5 text-lila-main" />
+              <span>Actividad</span>
             </button>
           </div>
 
-          {/* Botón de Menú de Herramientas para Celulares y Tablets */}
-          <button 
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} 
-            className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl hover:bg-gray-100 text-gray-600 transition-colors"
-            title="Opciones y herramientas del diagrama"
-            aria-label="Opciones"
-          >
-             <MoreVertical className="w-5 h-5" />
-          </button>
+          {/* Menú de Más Herramientas y Opciones */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className={`p-2 min-w-[38px] min-h-[38px] flex items-center justify-center rounded-xl transition-colors ${
+                isMobileMenuOpen ? 'bg-lila-light/40 text-lila-main' : 'hover:bg-gray-100 text-gray-600'
+              }`}
+              title="Herramientas y opciones avanzadas"
+              aria-label="Herramientas y opciones"
+            >
+               <MoreVertical className="w-5 h-5" />
+            </button>
 
-          {/* Botón Guardar siempre accesible */}
+            {/* DROPDOWN DESPLEGABLE DE HERRAMIENTAS */}
+            {isMobileMenuOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                />
+                <div className="absolute top-12 right-0 w-72 bg-white/98 backdrop-blur-md shadow-2xl border border-lila-light/60 rounded-2xl p-2 z-50 flex flex-col gap-1 animate-in fade-in slide-in-from-top-2 duration-150">
+                  <div className="px-3 py-2 border-b border-gray-100 text-xs font-bold text-gray-600 mb-1 flex items-center justify-between">
+                     <span className="flex items-center gap-1.5">
+                       <div className={`w-2 h-2 rounded-full ${connectionStatus === 'Sin conexión' ? 'bg-red-500' : connectionStatus === 'Sincronizado' ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+                       {connectionStatus === 'Sincronizado'
+                         ? (presenceReceived ? `En línea · ${connectedUsers.length}` : 'Actualizando presencia…')
+                         : connectionStatus}
+                     </span>
+                     <span className="text-[10px] text-lila-main font-semibold bg-lila-light/30 px-2 py-0.5 rounded-full">{formatRole(userRole)}</span>
+                  </div>
+
+                  {/* Grupo Colaboración e IA */}
+                  <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-3 pt-1">Colaboración e IA</div>
+                  <button onClick={() => { setIsMobileMenuOpen(false); setRightTab('chat'); setIsRightPanelOpen(true); }} className="px-3 py-2 text-left text-xs font-semibold text-lila-main hover:bg-lila-light/20 rounded-xl transition-colors flex items-center gap-2">
+                    <MessageSquare className="w-4 h-4 text-lila-main" /> Chat del Proyecto
+                  </button>
+                  <button onClick={() => { setIsMobileMenuOpen(false); handleOpenVoice(); }} className="px-3 py-2 text-left text-xs font-medium text-gray-700 hover:bg-lila-light/20 rounded-xl transition-colors flex items-center gap-2">
+                    <Mic className="w-4 h-4 text-lila-main" /> Control por Voz
+                  </button>
+                  <button onClick={() => { setIsMobileMenuOpen(false); setShowHistory(true); }} className="px-3 py-2 text-left text-xs font-medium text-gray-700 hover:bg-lila-light/20 rounded-xl transition-colors flex items-center gap-2">
+                    <Users className="w-4 h-4 text-lila-main" /> Actividad y Presencia
+                  </button>
+                  <button onClick={() => { setIsMobileMenuOpen(false); setShowIaModal(true); }} className="px-3 py-2 text-left text-xs font-medium text-gray-700 hover:bg-lila-light/20 rounded-xl transition-colors flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-lila-main" /> Asistente IA
+                  </button>
+
+                  <div className="h-px bg-gray-100 my-1"></div>
+
+                  {/* Grupo Importar y Exportar */}
+                  <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-3 pt-1">Importar y Exportar</div>
+                  <button onClick={() => { setIsMobileMenuOpen(false); setShowImageModal(true); }} className="px-3 py-2 text-left text-xs font-medium text-gray-700 hover:bg-lila-light/20 rounded-xl transition-colors flex items-center gap-2">
+                    <ImageIcon className="w-4 h-4 text-lila-main" /> Importar de Imagen
+                  </button>
+                  <button onClick={() => { setIsMobileMenuOpen(false); setShowXmiImport(true); }} className="px-3 py-2 text-left text-xs font-medium text-gray-700 hover:bg-lila-light/20 rounded-xl transition-colors flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-lila-main" /> Importar XMI
+                  </button>
+                  <button onClick={() => { setIsMobileMenuOpen(false); setShowXmiExport(true); }} className="px-3 py-2 text-left text-xs font-medium text-gray-700 hover:bg-lila-light/20 rounded-xl transition-colors flex items-center gap-2">
+                    <FileCode className="w-4 h-4 text-lila-main" /> Exportar XMI
+                  </button>
+
+                  <div className="h-px bg-gray-100 my-1"></div>
+
+                  {/* Grupo Generación de Código */}
+                  <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-3 pt-1">Generación de Código</div>
+                  <button onClick={() => { setIsMobileMenuOpen(false); setShowGenerateBackendModal(true); }} disabled={isGeneratingBackend} className="px-3 py-2 text-left text-xs font-semibold text-lila-main hover:bg-lila-light/20 rounded-xl transition-colors flex items-center gap-2 disabled:opacity-50">
+                    <FileCode className="w-4 h-4" /> {isGeneratingBackend ? 'Generando backend...' : 'Generar Backend Spring'}
+                  </button>
+                  <button onClick={() => { setIsMobileMenuOpen(false); setShowGenerateMobileModal(true); }} disabled={isGeneratingMobile} className="px-3 py-2 text-left text-xs font-semibold text-blue-600 hover:bg-blue-50 rounded-xl transition-colors flex items-center gap-2 disabled:opacity-50">
+                    <Smartphone className="w-4 h-4" /> {isGeneratingMobile ? 'Generando app...' : 'Generar App Flutter'}
+                  </button>
+
+                  <div className="h-px bg-gray-100 my-1"></div>
+
+                  <button onClick={() => { setIsMobileMenuOpen(false); navigate(proyectoId ? `/proyectos/${proyectoId}` : '/dashboard'); }} className="px-3 py-2 text-left text-xs font-medium text-gray-500 hover:bg-gray-100 rounded-xl transition-colors flex items-center gap-2">
+                    <ArrowLeft className="w-4 h-4" /> Volver al Proyecto
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Botón Guardar siempre accesible y protegido */}
           {canEdit && (
-            <button 
+            <button
+              type="button"
               onClick={handleSave}
               disabled={saveStatus === 'saving'}
               title={saveStatusLabels[saveStatus]}
-              className="px-3 py-2 min-h-[44px] bg-gradient-to-r from-lila-main to-pink-main text-white text-xs md:text-sm font-bold rounded-xl hover:opacity-90 active:scale-95 transition-all flex items-center gap-1.5 shadow-sm disabled:cursor-wait disabled:opacity-60 shrink-0"
+              className="px-3 sm:px-4 py-2 min-h-[40px] bg-gradient-to-r from-lila-main to-pink-main text-white text-xs md:text-sm font-bold rounded-xl hover:opacity-90 active:scale-95 transition-all flex items-center gap-1.5 shadow-sm disabled:cursor-wait disabled:opacity-60 shrink-0"
             >
               <Save className="w-4 h-4" />
-              <span className="hidden sm:inline">{saveStatus === 'saving' ? 'Guardando...' : 'Guardar'}</span>
+              <span className="hidden xs:inline">{saveStatus === 'saving' ? 'Guardando...' : 'Guardar'}</span>
             </button>
           )}
         </div>
-
-        {/* MENÚ MÓVIL DESPLEGABLE */}
-        {isMobileMenuOpen && (
-           <div className="absolute top-14 right-3 w-64 bg-white/95 backdrop-blur-md shadow-2xl border border-lila-light/60 rounded-2xl p-2 z-50 flex flex-col gap-1 animate-in fade-in slide-in-from-top-2 duration-200">
-             <div className="px-3 py-2 border-b border-gray-100 text-xs font-bold text-gray-600 mb-1 flex items-center justify-between">
-                <span className="flex items-center gap-1.5">
-                  <div className={`w-2 h-2 rounded-full ${connectionStatus === 'Sin conexión' ? 'bg-red-500' : connectionStatus === 'Sincronizado' ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
-                  {connectionStatus === 'Sincronizado' ? `En línea · ${connectedUsers.length}` : connectionStatus}
-                </span>
-                <span className="text-[10px] text-gray-400 font-semibold">{formatRole(userRole)}</span>
-             </div>
-             <button onClick={() => { setIsMobileMenuOpen(false); handleOpenVoice(); }} className="px-3 py-2 text-left text-sm font-semibold text-lila-main hover:bg-lila-light/20 rounded-xl transition-colors flex items-center gap-2">
-               <Mic className="w-4 h-4 text-lila-main" /> Control por Voz
-             </button>
-             <button onClick={() => { setIsMobileMenuOpen(false); setShowHistory(true); }} className="px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-lila-light/20 rounded-xl transition-colors flex items-center gap-2">
-               <Users className="w-4 h-4 text-lila-main" /> Actividad y Presencia
-             </button>
-             <button onClick={() => { setIsMobileMenuOpen(false); setShowIaModal(true); }} className="px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-lila-light/20 rounded-xl transition-colors flex items-center gap-2">
-               <Sparkles className="w-4 h-4 text-lila-main" /> Asistente IA
-             </button>
-             <button onClick={() => { setIsMobileMenuOpen(false); setShowImageModal(true); }} className="px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-lila-light/20 rounded-xl transition-colors flex items-center gap-2">
-               <ImageIcon className="w-4 h-4 text-lila-main" /> Importar de Imagen
-             </button>
-             <button onClick={() => { setIsMobileMenuOpen(false); setShowXmiImport(true); }} className="px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-lila-light/20 rounded-xl transition-colors flex items-center gap-2">
-               <FileText className="w-4 h-4 text-lila-main" /> Importar XMI
-             </button>
-             <button onClick={() => { setIsMobileMenuOpen(false); setShowXmiExport(true); }} className="px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-lila-light/20 rounded-xl transition-colors flex items-center gap-2">
-               <FileCode className="w-4 h-4 text-lila-main" /> Exportar XMI
-             </button>
-             <div className="h-px bg-gray-100 my-1"></div>
-             <button onClick={() => { setIsMobileMenuOpen(false); setShowGenerateBackendModal(true); }} className="px-3 py-2 text-left text-sm font-semibold text-lila-main hover:bg-lila-light/20 rounded-xl transition-colors flex items-center gap-2">
-               <FileCode className="w-4 h-4" /> Generar Backend Spring
-             </button>
-             <button onClick={() => { setIsMobileMenuOpen(false); setShowGenerateMobileModal(true); }} className="px-3 py-2 text-left text-sm font-semibold text-blue-600 hover:bg-blue-50 rounded-xl transition-colors flex items-center gap-2">
-               <Smartphone className="w-4 h-4" /> Generar App Flutter
-             </button>
-             <div className="h-px bg-gray-100 my-1"></div>
-             <button onClick={() => { setIsMobileMenuOpen(false); navigate(proyectoId ? `/proyectos/${proyectoId}` : '/dashboard'); }} className="px-3 py-2 text-left text-sm font-medium text-gray-500 hover:bg-gray-100 rounded-xl transition-colors flex items-center gap-2">
-               <ArrowLeft className="w-4 h-4" /> Volver al Proyecto
-             </button>
-           </div>
-        )}
       </header>
 
       {/* ÁREA DE TRABAJO PRINCIPAL */}
@@ -1435,6 +1527,18 @@ export default function UMLEditor() {
                 className="shrink-0 font-bold underline"
               >
                 Reintentar guardado
+              </button>
+            </div>
+          )}
+          {remoteConflict && !saveError && (
+            <div className="absolute inset-x-3 top-4 z-30 mx-auto flex max-w-2xl items-center gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-lg">
+              <span className="min-w-0 flex-1">{remoteConflict}</span>
+              <button
+                type="button"
+                onClick={() => setLoadAttempt(value => value + 1)}
+                className="shrink-0 font-bold underline"
+              >
+                Recargar
               </button>
             </div>
           )}
@@ -1730,11 +1834,15 @@ export default function UMLEditor() {
 
               {/* 7. Inspector Sheet Toggle */}
               <button
-                onClick={() => setIsRightPanelOpen(!isRightPanelOpen)}
+                type="button"
+                onClick={() => {
+                  setRightTab('inspector');
+                  setIsRightPanelOpen(!isRightPanelOpen);
+                }}
                 title="Abrir inspector de propiedades"
                 aria-label="Inspector"
                 className={`p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl transition-all relative ${
-                  isRightPanelOpen ? 'bg-lila-light/50 text-lila-main' : 'text-gray-600 hover:bg-gray-100'
+                  isRightPanelOpen && rightTab === 'inspector' ? 'bg-lila-light/50 text-lila-main' : 'text-gray-600 hover:bg-gray-100'
                 }`}
               >
                 <Settings2 className="w-5 h-5" />
@@ -1742,31 +1850,92 @@ export default function UMLEditor() {
                   <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-lila-main rounded-full"></span>
                 )}
               </button>
+
+              {/* 8. Chat del Proyecto Móvil */}
+              <button
+                type="button"
+                onClick={() => {
+                  setRightTab('chat');
+                  setIsRightPanelOpen(true);
+                }}
+                title="Abrir chat del proyecto"
+                aria-label="Chat del proyecto"
+                className={`p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl transition-all relative ${
+                  isRightPanelOpen && rightTab === 'chat' ? 'bg-lila-light/50 text-lila-main' : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                <MessageSquare className="w-5 h-5 text-lila-main" />
+              </button>
             </div>
           </div>
         </main>
 
         {/* PANEL DERECHO ESCRITORIO (>= lg) */}
-        <aside className="hidden lg:flex flex-col w-80 bg-white/95 backdrop-blur-md border-l border-lila-light/50 shadow-[-4px_0_24px_rgba(139,92,246,0.03)] shrink-0 h-full overflow-hidden">
-          <div className="flex border-b border-lila-light/50 bg-gray-50/50 shrink-0">
+        <aside className="hidden lg:flex flex-col w-96 xl:w-[28rem] bg-white/95 backdrop-blur-md border-l border-lila-light/50 shadow-[-4px_0_24px_rgba(139,92,246,0.03)] shrink-0 h-full overflow-hidden">
+          <div className="flex border-b border-lila-light/50 bg-gray-50/70 shrink-0">
             <button 
-              className={`flex-1 py-4 text-xs font-bold tracking-wider uppercase transition-colors ${rightTab === 'inspector' ? 'text-lila-main border-b-2 border-lila-main bg-white' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'}`}
+              type="button"
+              className={`flex-1 py-3 px-2 text-xs font-bold transition-all border-b-2 flex items-center justify-center gap-1.5 min-w-0 ${
+                rightTab === 'inspector'
+                  ? 'text-lila-main border-lila-main bg-white shadow-xs'
+                  : 'text-gray-500 border-transparent hover:text-gray-700 hover:bg-gray-100/60'
+              }`}
               onClick={() => setRightTab('inspector')}
+              title="Inspector de propiedades"
             >
-              <div className="flex items-center justify-center gap-2">
-                <Settings2 className="w-4 h-4" /> Inspector
-              </div>
+              <Settings2 className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">Inspector</span>
             </button>
-            <button 
-              className={`flex-1 py-4 text-xs font-bold tracking-wider uppercase transition-colors ${rightTab === 'colaboracion' ? 'text-lila-main border-b-2 border-lila-main bg-white' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'}`}
+
+            <button
+              type="button"
+              className={`flex-1 py-3 px-2 text-xs font-bold transition-all border-b-2 flex items-center justify-center gap-1.5 min-w-0 ${
+                rightTab === 'colaboracion'
+                  ? 'text-lila-main border-lila-main bg-white shadow-xs'
+                  : 'text-gray-500 border-transparent hover:text-gray-700 hover:bg-gray-100/60'
+              }`}
               onClick={() => setRightTab('colaboracion')}
+              title="Usuarios en línea"
             >
-              Colaboración {connectedUsers.length > 0 ? `(${connectedUsers.length})` : ''}
+              <Users className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">Equipo</span>
+              {connectedUsers.length > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full bg-lila-light/40 text-lila-main text-[10px] font-bold">
+                  {connectedUsers.length}
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              className={`flex-1 py-3 px-2 text-xs font-bold transition-all border-b-2 flex items-center justify-center gap-1.5 min-w-0 ${
+                rightTab === 'chat'
+                  ? 'text-lila-main border-lila-main bg-white shadow-xs'
+                  : 'text-gray-500 border-transparent hover:text-gray-700 hover:bg-gray-100/60'
+              }`}
+              onClick={() => setRightTab('chat')}
+              title="Chat colaborativo del proyecto"
+            >
+              <MessageSquare className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">Chat</span>
             </button>
           </div>
 
-          <div className="p-5 overflow-y-auto flex-1 min-h-0">
-            {rightTab === 'inspector' ? renderInspectorContent() : renderCollaborationContent()}
+          <div className={`overflow-y-auto flex-1 min-h-0 ${rightTab === 'chat' ? 'p-0 flex flex-col' : 'p-5'}`}>
+            {rightTab === 'inspector'
+              ? renderInspectorContent()
+              : rightTab === 'colaboracion'
+              ? renderCollaborationContent()
+              : (
+                <ProjectChat
+                  proyectoId={proyectoId}
+                  diagramaId={id ? Number(id) : undefined}
+                  diagramaNombre={nombreDiagrama}
+                  hasUnsavedChanges={saveStatus !== 'saved'}
+                  variant="compact"
+                  className="rounded-none border-none h-full shadow-none bg-transparent"
+                />
+              )}
           </div>
         </aside>
 
@@ -1790,33 +1959,66 @@ export default function UMLEditor() {
             />
             
             {/* Encabezado del Inspector Móvil */}
-            <div className="flex items-center justify-between px-4 pb-2 border-b border-gray-100 shrink-0">
-              <div className="flex gap-2">
+            <div className="flex items-center justify-between px-3 sm:px-4 py-2 border-b border-gray-100 shrink-0 bg-gray-50/50">
+              <div className="flex items-center gap-1.5 min-w-0 flex-1 mr-2">
                 <button
+                  type="button"
                   onClick={() => setRightTab('inspector')}
-                  className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-colors ${rightTab === 'inspector' ? 'bg-lila-main text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'}`}
+                  className={`px-2.5 py-1.5 text-xs font-bold rounded-xl transition-all flex items-center gap-1 shrink-0 ${
+                    rightTab === 'inspector' ? 'bg-lila-main text-white shadow-xs' : 'text-gray-600 hover:bg-gray-100'
+                  }`}
                 >
-                  Inspector {selectedNode ? `(${selectedNode.data.nombre})` : selectedEdge ? '(Relación)' : ''}
+                  <Settings2 className="w-3.5 h-3.5" />
+                  <span>Inspector</span>
                 </button>
                 <button
+                  type="button"
                   onClick={() => setRightTab('colaboracion')}
-                  className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-colors ${rightTab === 'colaboracion' ? 'bg-lila-main text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'}`}
+                  className={`px-2.5 py-1.5 text-xs font-bold rounded-xl transition-all flex items-center gap-1 shrink-0 ${
+                    rightTab === 'colaboracion' ? 'bg-lila-main text-white shadow-xs' : 'text-gray-600 hover:bg-gray-100'
+                  }`}
                 >
-                  Colaboración {connectedUsers.length > 0 ? `(${connectedUsers.length})` : ''}
+                  <Users className="w-3.5 h-3.5" />
+                  <span>Equipo {connectedUsers.length > 0 ? `(${connectedUsers.length})` : ''}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRightTab('chat')}
+                  className={`px-2.5 py-1.5 text-xs font-bold rounded-xl transition-all flex items-center gap-1 shrink-0 ${
+                    rightTab === 'chat' ? 'bg-lila-main text-white shadow-xs' : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  <span>Chat</span>
                 </button>
               </div>
               <button
+                type="button"
                 onClick={() => setIsRightPanelOpen(false)}
-                className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center text-gray-400 hover:text-gray-700 rounded-xl"
-                aria-label="Cerrar inspector"
+                className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center text-gray-400 hover:text-gray-700 rounded-xl shrink-0"
+                aria-label="Cerrar panel"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {/* Contenido editable del Inspector en Celular */}
-            <div className="p-4 overflow-y-auto flex-1 min-h-0 space-y-4">
-              {rightTab === 'inspector' ? renderInspectorContent() : renderCollaborationContent()}
+            <div className={`overflow-y-auto flex-1 min-h-0 ${rightTab === 'chat' ? 'p-0 flex flex-col' : 'p-4 space-y-4'}`}>
+              {rightTab === 'inspector'
+                ? renderInspectorContent()
+                : rightTab === 'colaboracion'
+                ? renderCollaborationContent()
+                : (
+                  <ProjectChat
+                    proyectoId={proyectoId}
+                    diagramaId={id ? Number(id) : undefined}
+                    diagramaNombre={nombreDiagrama}
+                    hasUnsavedChanges={saveStatus !== 'saved'}
+                    variant="compact"
+                    onClose={() => setIsRightPanelOpen(false)}
+                    className="rounded-none border-none h-full shadow-none bg-transparent"
+                  />
+                )}
             </div>
           </div>
         </div>

@@ -4,11 +4,12 @@ import { api } from '../api/axios';
 import { 
   ArrowLeft, ArrowRight, Plus, FileJson, LayoutTemplate, 
   Edit2, Play, Square, CheckCircle2, XCircle, Search, 
-  Users, Mail, Copy, ChevronDown, Clock, X
+  Users, Mail, Copy, ChevronDown, Clock, X, MessageSquare
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import BottomNav from '../components/BottomNav';
 import { formatRole } from '../utils/roleUtils';
+import ProjectChat from '../components/chat/ProjectChat';
 
 interface Diagrama {
   id: number;
@@ -33,7 +34,8 @@ export default function ProjectDiagrams() {
   const [diagramas, setDiagramas] = useState<Diagrama[]>([]);
   const [proyecto, setProyecto] = useState<ProyectoInfo | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'diagramas' | 'participantes'>('diagramas');
+  const [loadError, setLoadError] = useState('');
+  const [activeTab, setActiveTab] = useState<'diagramas' | 'participantes' | 'chat'>('diagramas');
   const [participantes, setParticipantes] = useState<any[]>([]);
   const [invitaciones, setInvitaciones] = useState<any[]>([]);
   const [correoParticipante, setCorreoParticipante] = useState('');
@@ -90,6 +92,8 @@ export default function ProjectDiagrams() {
   };
 
   const fetchData = async () => {
+    setLoading(true);
+    setLoadError('');
     try {
       const projRes = await api.get(`/proyectos/${id}`);
       setProyecto(projRes.data);
@@ -110,9 +114,18 @@ export default function ProjectDiagrams() {
         console.error("Error al cargar participantes:", err);
       }
 
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      showError('Error al cargar la información del proyecto');
+      const status = err.response?.status;
+      const message = status === 401
+        ? 'Tu sesión expiró. Vuelve a iniciar sesión.'
+        : status === 403
+          ? 'No tienes acceso a este proyecto o a sus diagramas.'
+          : status === 404
+            ? 'El proyecto solicitado no existe.'
+            : 'No se pudo cargar la información del proyecto.';
+      setLoadError(message);
+      setDiagramas([]);
     } finally {
       setLoading(false);
     }
@@ -125,7 +138,6 @@ export default function ProjectDiagrams() {
   const canEditHelper = (proj: ProyectoInfo | null) => {
     if (!user || !proj) return false;
     if (user.id === proj.anfitrionId) return true;
-    if (user.permisos?.includes('GESTIONAR_PROYECTOS')) return true;
     if (user.rol === 'ADMIN' || user.rol === 'ROLE_ADMIN') return true;
     return false;
   };
@@ -268,7 +280,7 @@ export default function ProjectDiagrams() {
         style={{ paddingTop: 'max(0.875rem, env(safe-area-inset-top, 0px))' }}
       >
         <div className="flex items-center gap-2.5 sm:gap-4 min-w-0 flex-1 pr-2">
-          <button 
+          <button
             type="button"
             onClick={() => navigate('/proyectos')} 
             className="p-2 text-gray-500 hover:text-lila-main hover:bg-lila-light/50 rounded-xl transition-all min-h-[44px] min-w-[44px] flex items-center justify-center shrink-0"
@@ -287,6 +299,21 @@ export default function ProjectDiagrams() {
         </div>
 
         <div className="flex items-center gap-3 shrink-0">
+          <button
+            type="button"
+            onClick={() => setActiveTab('chat')}
+            className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 min-h-[40px] ${
+              activeTab === 'chat'
+                ? 'bg-lila-main text-white shadow-xs'
+                : 'bg-lila-light/40 text-lila-main hover:bg-lila-light/70'
+            }`}
+            title="Abrir chat del proyecto"
+          >
+            <MessageSquare className="w-4 h-4" />
+            <span className="hidden sm:inline">Chat del proyecto</span>
+            <span className="sm:hidden">Chat</span>
+          </button>
+
           <div className="hidden sm:flex flex-col items-end text-right">
             <p className="text-xs font-bold text-text-dark">{user?.nombre} {user?.apellido}</p>
             <p className="text-[10px] font-semibold text-lila-main uppercase tracking-wider">{formatRole(user?.rol)}</p>
@@ -324,6 +351,16 @@ export default function ProjectDiagrams() {
           >
             Equipo del proyecto
           </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('chat')}
+            className={`pb-3 px-2 sm:px-3 font-bold text-xs sm:text-sm transition-colors border-b-2 whitespace-nowrap min-h-[44px] flex items-center gap-1.5 ${
+              activeTab === 'chat' ? 'border-lila-main text-lila-main' : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <MessageSquare className="w-4 h-4" />
+            <span>Chat del proyecto</span>
+          </button>
         </div>
 
         {activeTab === 'diagramas' && (
@@ -347,6 +384,21 @@ export default function ProjectDiagrams() {
             {loading ? (
               <div className="flex justify-center py-20">
                 <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-lila-main"></div>
+              </div>
+            ) : loadError ? (
+              <div className="flex flex-col items-center justify-center py-16 sm:py-24 bg-white/70 backdrop-blur-sm rounded-3xl border border-red-100 px-4 text-center">
+                <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mb-5 text-red-500">
+                  <XCircle className="w-8 h-8" />
+                </div>
+                <h3 className="text-lg sm:text-xl font-bold text-text-dark">No se pudieron cargar los diagramas</h3>
+                <p className="text-gray-500 mt-2 mb-6 max-w-md text-xs sm:text-sm font-medium">{loadError}</p>
+                <button
+                  type="button"
+                  onClick={fetchData}
+                  className="px-5 py-3 bg-lila-main text-white rounded-xl text-sm font-bold hover:opacity-90 min-h-[44px]"
+                >
+                  Reintentar
+                </button>
               </div>
             ) : diagramas.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 sm:py-24 bg-white/60 backdrop-blur-sm rounded-3xl border border-dashed border-lila-light px-4 text-center">
@@ -636,6 +688,16 @@ export default function ProjectDiagrams() {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {activeTab === 'chat' && (
+          <div className="max-w-4xl mx-auto h-[calc(100dvh-240px)] min-h-[500px]">
+            <ProjectChat
+              proyectoId={id}
+              proyectoNombre={proyecto?.nombre}
+              variant="embedded"
+            />
           </div>
         )}
       </main>

@@ -57,6 +57,20 @@ services:
       GEMINI_ENABLED: "true"
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash-lite}
+      CHAT_GEMINI_TIMEOUT_SECONDS: ${CHAT_GEMINI_TIMEOUT_SECONDS:-45}
+      CHAT_GROQ_ENABLED: ${CHAT_GROQ_ENABLED:-true}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODEL: ${GROQ_MODEL:-openai/gpt-oss-120b}
+      GROQ_BASE_URL: ${GROQ_BASE_URL:-https://api.groq.com/openai/v1}
+      CHAT_GROQ_TIMEOUT_SECONDS: ${CHAT_GROQ_TIMEOUT_SECONDS:-45}
+      CHAT_OPENROUTER_ENABLED: ${CHAT_OPENROUTER_ENABLED:-true}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-openai/gpt-oss-120b}
+      OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}
+      CHAT_OPENROUTER_TIMEOUT_SECONDS: ${CHAT_OPENROUTER_TIMEOUT_SECONDS:-45}
+      CHAT_OLLAMA_ENABLED: ${CHAT_OLLAMA_ENABLED:-true}
+      CHAT_OLLAMA_BASE_URL: http://ollama:11434
+      CHAT_OLLAMA_TIMEOUT_SECONDS: ${CHAT_OLLAMA_TIMEOUT_SECONDS:-90}
       IMAGE_OLLAMA_ENABLED: "true"
       IMAGE_OLLAMA_BASE_URL: http://ollama:11434
       IMAGE_OLLAMA_MODEL: ${IMAGE_OLLAMA_MODEL:-gemma3:4b}
@@ -64,6 +78,10 @@ services:
       IMAGE_GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       IMAGE_GEMINI_MODEL: ${IMAGE_GEMINI_MODEL:-gemini-3.5-flash-lite}
       JAVA_TOOL_OPTIONS: ${JAVA_TOOL_OPTIONS:--XX:MaxRAMPercentage=75.0}
+      CHAT_ATTACHMENTS_STORAGE_PATH: /data/chat-attachments
+      CHAT_ATTACHMENTS_MAX_FILE_BYTES: ${CHAT_ATTACHMENTS_MAX_FILE_BYTES:-10485760}
+    volumes:
+      - chat_attachments:/data/chat-attachments
     depends_on:
       postgres:
         condition: service_healthy
@@ -81,6 +99,7 @@ services:
       args:
         VITE_API_BASE_URL: /api
         VITE_WS_URL: /ws-uml
+        VITE_ENABLE_DEMO_CREDENTIALS: ${VITE_ENABLE_DEMO_CREDENTIALS:-true}
     restart: unless-stopped
     depends_on:
       - backend
@@ -102,3 +121,4 @@ networks:
 volumes:
   postgres_data:
   ollama_data:
+  chat_attachments:

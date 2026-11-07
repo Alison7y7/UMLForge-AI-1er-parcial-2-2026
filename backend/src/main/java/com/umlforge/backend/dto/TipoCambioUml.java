@@ -1,0 +1,15 @@
+package com.umlforge.backend.dto;
+
+public enum TipoCambioUml {
+    RENOMBRAR_CLASE,
+    AGREGAR_ATRIBUTO,
+    MODIFICAR_ATRIBUTO,
+    ELIMINAR_ATRIBUTO,
+    AGREGAR_METODO,
+    MODIFICAR_METODO,
+    ELIMINAR_METODO,
+    AGREGAR_RELACION,
+    MODIFICAR_RELACION,
+    ELIMINAR_RELACION,
+    OTRO
+}

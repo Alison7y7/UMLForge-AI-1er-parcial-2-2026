@@ -28,3 +28,8 @@ backend/src/main/resources/application.properties
 
 # Artefactos temporales de pruebas
 test-output.xmi
+
+# Scripts locales de restablecimiento de contraseñas y respaldos privados
+database/*password*.sql
+database/*passwords*.sql
+

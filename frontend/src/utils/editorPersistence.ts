@@ -3,7 +3,7 @@ import type { UmlModelJson } from '../types/uml';
 import { buildUmlModel, relationData } from './umlModelMapper.ts';
 
 export interface DiagramApiClient {
-  put: (url: string, body: unknown) => Promise<unknown>;
+  put: (url: string, body: unknown) => Promise<any>;
 }
 
 export interface EditorElements {
@@ -60,12 +60,15 @@ export const saveDiagramModel = async (
   client: DiagramApiClient,
   diagramId: string | number,
   nombre: string,
-  model: UmlModelJson
-): Promise<void> => {
-  await client.put(`/diagramas/${diagramId}`, {
+  model: UmlModelJson,
+  expectedVersion?: number
+): Promise<number | undefined> => {
+  const response = await client.put(`/diagramas/${diagramId}`, {
     nombre,
-    modeloJson: JSON.stringify(model)
+    modeloJson: JSON.stringify(model),
+    ...(expectedVersion !== undefined ? { version: expectedVersion } : {})
   });
+  return response?.data?.version;
 };
 
 export const diagramSnapshot = (nombre: string, model: UmlModelJson): string =>

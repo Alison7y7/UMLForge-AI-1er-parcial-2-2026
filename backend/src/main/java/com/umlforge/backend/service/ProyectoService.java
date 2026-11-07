@@ -20,19 +20,17 @@ public class ProyectoService {
     private final ProyectoRepository proyectoRepository;
     private final ParticipanteProyectoRepository participanteRepository;
     private final BitacoraService bitacoraService;
+    private final ProjectAccessService projectAccessService;
 
     public List<ProyectoResponse> listarProyectos(Usuario usuario) {
-        boolean esAdmin = usuario.getPermisos() != null && usuario.getPermisos().stream().anyMatch(p -> p.getCodigo().equals("GESTIONAR_PROYECTOS"));
-        if (!esAdmin && usuario.getRol() != null && usuario.getRol().getNombre().equals("ADMIN")) {
-            esAdmin = true; // Fallback
-        }
+        boolean esAdmin = usuario.getRol() != null && usuario.getRol().getNombre().equals("ADMIN");
         
         List<Proyecto> proyectos;
         if (esAdmin) {
             proyectos = proyectoRepository.findAll();
         } else {
             proyectos = proyectoRepository.findByAnfitrionId(usuario.getId());
-            List<Proyecto> partic = participanteRepository.findByUsuarioId(usuario.getId()).stream().map(p -> p.getProyecto()).collect(Collectors.toList());
+            List<Proyecto> partic = participanteRepository.findByUsuarioIdAndActivoTrue(usuario.getId()).stream().map(p -> p.getProyecto()).collect(Collectors.toList());
             for (Proyecto p : partic) {
                 if (!proyectos.contains(p)) proyectos.add(p);
             }
@@ -41,16 +39,7 @@ public class ProyectoService {
     }
 
     public ProyectoResponse obtenerProyecto(Long id, Usuario usuario) {
-        Proyecto proyecto = proyectoRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Proyecto no encontrado"));
-                
-        boolean esAnfitrion = proyecto.getAnfitrion().getId().equals(usuario.getId());
-        boolean esParticipante = participanteRepository.existsByProyectoIdAndUsuarioId(id, usuario.getId());
-        
-        if (!esAnfitrion && !esParticipante && (usuario.getRol() == null || !usuario.getRol().getNombre().equals("ADMIN"))) {
-            throw new RuntimeException("No tiene permisos para ver este proyecto");
-        }
-        
+        Proyecto proyecto = projectAccessService.requireProjectAccess(id, usuario);
         return mapToResponse(proyecto);
     }
 

@@ -41,6 +41,9 @@ export function registerServiceWorker() {
       .then((registration) => {
         console.log('[PWA] Service Worker registrado exitosamente con scope:', registration.scope);
 
+        // Forzar verificación de nueva versión en el servidor
+        registration.update().catch(() => {});
+
         // 1. Si ya hay un worker esperando activación
         if (registration.waiting) {
           waitingWorker = registration.waiting;

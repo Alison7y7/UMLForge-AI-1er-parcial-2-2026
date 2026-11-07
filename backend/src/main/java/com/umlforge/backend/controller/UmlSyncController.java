@@ -4,6 +4,7 @@ import com.umlforge.backend.dto.UmlEventMessage;
 import com.umlforge.backend.entity.Usuario;
 import com.umlforge.backend.repository.UsuarioRepository;
 import com.umlforge.backend.service.CollaborationService;
+import com.umlforge.backend.service.ProjectAccessService;
 import org.springframework.context.event.EventListener;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
@@ -19,17 +20,20 @@ public class UmlSyncController {
     private final SimpMessageSendingOperations messagingTemplate;
     private final CollaborationService collaborationService;
     private final UsuarioRepository usuarioRepository;
+    private final ProjectAccessService projectAccessService;
 
-    public UmlSyncController(SimpMessageSendingOperations messagingTemplate, CollaborationService collaborationService, UsuarioRepository usuarioRepository) {
+    public UmlSyncController(SimpMessageSendingOperations messagingTemplate, CollaborationService collaborationService, UsuarioRepository usuarioRepository, ProjectAccessService projectAccessService) {
         this.messagingTemplate = messagingTemplate;
         this.collaborationService = collaborationService;
         this.usuarioRepository = usuarioRepository;
+        this.projectAccessService = projectAccessService;
     }
 
     @MessageMapping("/diagramas/{diagramaId}/join")
     public void joinSession(@DestinationVariable Long diagramaId, SimpMessageHeaderAccessor headerAccessor) {
         if (headerAccessor.getUser() != null) {
             String email = headerAccessor.getUser().getName();
+            projectAccessService.requireDiagramAccess(diagramaId, email);
             collaborationService.userJoined(headerAccessor.getSessionId(), diagramaId, email);
         }
     }
@@ -37,18 +41,21 @@ public class UmlSyncController {
     @MessageMapping("/diagramas/{diagramaId}/presence")
     public void requestPresence(@DestinationVariable Long diagramaId, SimpMessageHeaderAccessor headerAccessor) {
         if (headerAccessor.getUser() == null) return;
+        projectAccessService.requireDiagramAccess(diagramaId, headerAccessor.getUser().getName());
         collaborationService.requestPresence(diagramaId);
     }
 
     @MessageMapping("/diagramas/{diagramaId}/lock")
     public void lockElement(@DestinationVariable Long diagramaId, @Payload UmlEventMessage event, SimpMessageHeaderAccessor headerAccessor) {
         if (headerAccessor.getUser() == null) return;
+        projectAccessService.requireDiagramAccess(diagramaId, headerAccessor.getUser().getName());
         Usuario user = usuarioRepository.findByCorreo(headerAccessor.getUser().getName()).orElse(null);
         if (user == null) return;
         
         Long userId = user.getId();
         event.setUsuarioId(userId);
         event.setUsuarioNombre(getNombreCompleto(user));
+        event.setDiagramaId(diagramaId);
         
         if ("LOCK_ELEMENT".equals(event.getTipoEvento())) {
             boolean success = collaborationService.lockElement(diagramaId, event.getElementoId(), userId);
@@ -72,10 +79,12 @@ public class UmlSyncController {
     @MessageMapping("/diagramas/{diagramaId}/event")
     public void handleEvent(@DestinationVariable Long diagramaId, @Payload UmlEventMessage event, SimpMessageHeaderAccessor headerAccessor) {
         if (headerAccessor.getUser() != null) {
+            projectAccessService.requireDiagramAccess(diagramaId, headerAccessor.getUser().getName());
             Usuario user = usuarioRepository.findByCorreo(headerAccessor.getUser().getName()).orElse(null);
             if (user != null) {
                 event.setUsuarioId(user.getId());
                 event.setUsuarioNombre(getNombreCompleto(user));
+                event.setDiagramaId(diagramaId);
                 
                 // We don't save to DB here yet because the prompt says 
                 // "Después de modificaciones: actualizar modelJson del diagrama... [Guardar] en barra superior".

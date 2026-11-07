@@ -1,10 +1,16 @@
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { api } from '../api/axios';
 import { useAuthStore } from '../store/authStore';
 import { Eye, EyeOff, Mail, Lock, ArrowRight, Code, Sparkles, GitMerge } from 'lucide-react';
 import Logo from '../components/Logo';
 import PwaInstallButton from '../components/pwa/PwaInstallButton';
+
+const isDemoBuild = import.meta.env.VITE_ENABLE_DEMO_CREDENTIALS === 'true';
+
+const DemoCredentialsAccordion = isDemoBuild
+  ? lazy(() => import('../components/demo/DemoCredentialsAccordion'))
+  : null;
 
 export default function Login() {
   const [correo, setCorreo] = useState('');
@@ -189,6 +195,17 @@ export default function Login() {
                   {!loading && <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />}
                 </button>
               </div>
+
+              {DemoCredentialsAccordion && (
+                <Suspense fallback={null}>
+                  <DemoCredentialsAccordion
+                    onSelectAccount={(selectedEmail, selectedPassword) => {
+                      setCorreo(selectedEmail);
+                      setPassword(selectedPassword);
+                    }}
+                  />
+                </Suspense>
+              )}
 
               <div className="mt-5 text-center text-xs sm:text-sm text-gray-500">
                 ¿No tienes una cuenta?{' '}

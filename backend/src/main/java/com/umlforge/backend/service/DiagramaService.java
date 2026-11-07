@@ -7,7 +7,6 @@ import com.umlforge.backend.entity.Diagrama;
 import com.umlforge.backend.entity.Proyecto;
 import com.umlforge.backend.entity.Usuario;
 import com.umlforge.backend.repository.DiagramaRepository;
-import com.umlforge.backend.repository.ParticipanteProyectoRepository;
 import com.umlforge.backend.repository.ProyectoRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -16,23 +15,21 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import org.springframework.web.server.ResponseStatusException;
+
+import static org.springframework.http.HttpStatus.CONFLICT;
+
 @Service
 @RequiredArgsConstructor
 public class DiagramaService {
 
     private final DiagramaRepository diagramaRepository;
     private final ProyectoRepository proyectoRepository;
-    private final ParticipanteProyectoRepository participanteRepository;
     private final BitacoraService bitacoraService;
+    private final ProjectAccessService projectAccessService;
 
     private void validarAccesoProyecto(Proyecto proyecto, Usuario actor) {
-        boolean esAnfitrion = proyecto.getAnfitrion().getId().equals(actor.getId());
-        boolean esAdmin = actor.getRol() != null && actor.getRol().getNombre().equals("ADMIN");
-        boolean esParticipante = participanteRepository.existsByProyectoIdAndUsuarioId(proyecto.getId(), actor.getId());
-
-        if (!esAnfitrion && !esAdmin && !esParticipante) {
-            throw new RuntimeException("No tiene permisos para acceder a los diagramas de este proyecto");
-        }
+        projectAccessService.requireProjectAccess(proyecto.getId(), actor);
     }
 
     public List<DiagramaResponse> listarDiagramas(Long proyectoId, Usuario actor) {
@@ -75,8 +72,13 @@ public class DiagramaService {
 
     @Transactional
     public DiagramaResponse modificarDiagrama(Long id, DiagramaRequest request, Usuario actor) {
-        Diagrama diagrama = diagramaRepository.findById(id).orElseThrow(() -> new RuntimeException("Diagrama no encontrado"));
+        Diagrama diagrama = diagramaRepository.findByIdForUpdate(id).orElseThrow(() -> new RuntimeException("Diagrama no encontrado"));
         validarAccesoProyecto(diagrama.getProyecto(), actor);
+
+        if (request.getVersion() != null && !request.getVersion().equals(diagrama.getVersion())) {
+            throw new ResponseStatusException(CONFLICT,
+                    "El diagrama cambio en otra sesion. Recarga o resuelve tus cambios locales antes de guardar");
+        }
 
         diagrama.setNombre(request.getNombre());
         diagrama.setModeloJson(request.getModeloJson());
@@ -106,8 +108,7 @@ public class DiagramaService {
         
         Proyecto proyecto = diagrama.getProyecto();
         boolean esAnfitrion = proyecto.getAnfitrion().getId().equals(actor.getId());
-        boolean esAdmin = actor.getPermisos() != null && actor.getPermisos().stream().anyMatch(p -> p.getCodigo().equals("GESTIONAR_PROYECTOS"));
-        if (!esAdmin && actor.getRol() != null && actor.getRol().getNombre().equals("ADMIN")) esAdmin = true;
+        boolean esAdmin = actor.getRol() != null && actor.getRol().getNombre().equals("ADMIN");
         
         if (!esAnfitrion && !esAdmin) {
             throw new RuntimeException("Solo el anfitrión puede modificar el estado del diagrama");
