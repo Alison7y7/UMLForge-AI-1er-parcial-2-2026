@@ -8,6 +8,7 @@ import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 @Component
@@ -23,12 +24,18 @@ public class DiagramaActualizadoStompPublisher {
         message.setDiagramaId(event.diagramaId());
         message.setUsuarioId(event.usuarioId());
         message.setUsuarioNombre(event.usuarioNombre());
-        message.setElementoId(event.recomendacionId());
+        message.setElementoId(event.changeId());
         message.setTimestamp(Instant.now().toEpochMilli());
-        message.setPayload(Map.of(
-                "recomendacionId", event.recomendacionId(),
-                "version", event.version(),
-                "modeloJson", event.modeloJson()));
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("changeId", event.changeId());
+        payload.put("updateType", event.updateType());
+        if ("AI_RECOMMENDATION".equals(event.updateType())) {
+            payload.put("recomendacionId", event.changeId());
+        }
+        payload.put("nombre", event.diagramName());
+        payload.put("version", event.version());
+        payload.put("modeloJson", event.modeloJson());
+        message.setPayload(payload);
         collaborationService.addToHistory(event.diagramaId(), message);
         messagingTemplate.convertAndSend("/topic/diagramas/" + event.diagramaId(), message);
     }

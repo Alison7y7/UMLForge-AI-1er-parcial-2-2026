@@ -9,10 +9,14 @@ import com.umlforge.backend.entity.Usuario;
 import com.umlforge.backend.repository.DiagramaRepository;
 import com.umlforge.backend.repository.ProyectoRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.springframework.web.server.ResponseStatusException;
@@ -27,6 +31,7 @@ public class DiagramaService {
     private final ProyectoRepository proyectoRepository;
     private final BitacoraService bitacoraService;
     private final ProjectAccessService projectAccessService;
+    private final ApplicationEventPublisher eventPublisher;
 
     private void validarAccesoProyecto(Proyecto proyecto, Usuario actor) {
         projectAccessService.requireProjectAccess(proyecto.getId(), actor);
@@ -74,6 +79,7 @@ public class DiagramaService {
     public DiagramaResponse modificarDiagrama(Long id, DiagramaRequest request, Usuario actor) {
         Diagrama diagrama = diagramaRepository.findByIdForUpdate(id).orElseThrow(() -> new RuntimeException("Diagrama no encontrado"));
         validarAccesoProyecto(diagrama.getProyecto(), actor);
+        requireEditPermission(actor);
 
         if (request.getVersion() != null && !request.getVersion().equals(diagrama.getVersion())) {
             throw new ResponseStatusException(CONFLICT,
@@ -83,10 +89,36 @@ public class DiagramaService {
         diagrama.setNombre(request.getNombre());
         diagrama.setModeloJson(request.getModeloJson());
 
-        Diagrama guardado = diagramaRepository.save(diagrama);
+        // @Version must be incremented before building the REST response and the
+        // authoritative event that will be delivered after this transaction commits.
+        Diagrama guardado = diagramaRepository.saveAndFlush(diagrama);
         bitacoraService.registrarAccion(actor, diagrama.getProyecto(), "MODIFICAR_DIAGRAMA", "Modificó el diagrama: " + guardado.getNombre());
 
+        String changeId = request.getChangeId() == null || request.getChangeId().isBlank()
+                ? "manual:" + UUID.randomUUID()
+                : request.getChangeId();
+        eventPublisher.publishEvent(new DiagramaActualizadoEvent(
+                guardado.getProyecto().getId(), guardado.getId(), actor.getId(), fullName(actor),
+                changeId, "MANUAL", guardado.getNombre(), guardado.getVersion(), guardado.getModeloJson()));
+
         return mapToResponse(guardado);
+    }
+
+    private void requireEditPermission(Usuario user) {
+        boolean roleAllowed = user.getRol() != null
+                && Set.of("ADMIN", "ANFITRION", "COLABORADOR").contains(user.getRol().getNombre());
+        boolean explicit = user.getPermisos().stream().anyMatch(p -> "EDITAR_DIAGRAMAS".equals(p.getCodigo()));
+        boolean rolePermission = user.getRol() != null && user.getRol().getPermisos().stream()
+                .anyMatch(p -> "EDITAR_DIAGRAMAS".equals(p.getCodigo()));
+        if (!roleAllowed && !explicit && !rolePermission) {
+            throw new AccessDeniedException("No tiene permiso para editar diagramas");
+        }
+    }
+
+    private String fullName(Usuario user) {
+        String full = ((user.getNombre() == null ? "" : user.getNombre()) + " "
+                + (user.getApellido() == null ? "" : user.getApellido())).trim();
+        return full.isBlank() ? user.getCorreo() : full;
     }
 
     @Transactional

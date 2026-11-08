@@ -4,6 +4,7 @@ public class DiagramaRequest {
     private String nombre;
     private String modeloJson;
     private Long version;
+    private String changeId;
 
     // Getters and setters
     public String getNombre() { return nombre; }
@@ -12,4 +13,6 @@ public class DiagramaRequest {
     public void setModeloJson(String modeloJson) { this.modeloJson = modeloJson; }
     public Long getVersion() { return version; }
     public void setVersion(Long version) { this.version = version; }
+    public String getChangeId() { return changeId; }
+    public void setChangeId(String changeId) { this.changeId = changeId; }
 }

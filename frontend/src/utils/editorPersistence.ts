@@ -61,15 +61,45 @@ export const saveDiagramModel = async (
   diagramId: string | number,
   nombre: string,
   model: UmlModelJson,
-  expectedVersion?: number
+  expectedVersion?: number,
+  changeId?: string
 ): Promise<number | undefined> => {
   const response = await client.put(`/diagramas/${diagramId}`, {
     nombre,
     modeloJson: JSON.stringify(model),
-    ...(expectedVersion !== undefined ? { version: expectedVersion } : {})
+    ...(expectedVersion !== undefined ? { version: expectedVersion } : {}),
+    ...(changeId ? { changeId } : {})
   });
   return response?.data?.version;
 };
 
 export const diagramSnapshot = (nombre: string, model: UmlModelJson): string =>
   JSON.stringify({ nombre, model });
+
+export type RemoteModelUpdateAction = 'ignore' | 'apply' | 'acknowledge' | 'conflict';
+
+export const resolveRemoteModelUpdate = ({
+  currentSnapshot,
+  lastSavedSnapshot,
+  remoteSnapshot,
+  currentVersion,
+  remoteVersion,
+  pendingChangeId,
+  remoteChangeId
+}: {
+  currentSnapshot: string;
+  lastSavedSnapshot: string | null;
+  remoteSnapshot: string;
+  currentVersion?: number;
+  remoteVersion?: number;
+  pendingChangeId?: string | null;
+  remoteChangeId?: string | null;
+}): RemoteModelUpdateAction => {
+  if (remoteVersion !== undefined && currentVersion !== undefined && remoteVersion <= currentVersion) {
+    return 'ignore';
+  }
+  if (currentSnapshot === remoteSnapshot) return 'acknowledge';
+  if (lastSavedSnapshot !== null && currentSnapshot === lastSavedSnapshot) return 'apply';
+  if (pendingChangeId && remoteChangeId === pendingChangeId) return 'acknowledge';
+  return 'conflict';
+};

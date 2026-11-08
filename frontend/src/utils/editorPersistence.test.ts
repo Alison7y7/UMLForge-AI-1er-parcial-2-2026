@@ -5,6 +5,7 @@ import {
   modelFromEditorElements,
   modelToEditorElements,
   parsePersistedModel,
+  resolveRemoteModelUpdate,
   saveDiagramModel
 } from './editorPersistence.ts';
 
@@ -158,4 +159,33 @@ test('rechaza un modelo persistido inválido para que la carga muestre un error'
     () => parsePersistedModel('{"clases":[]}'),
     /clases y relaciones válidas/
   );
+});
+
+test('aplica una versión remota nueva cuando el editor está limpio', () => {
+  assert.equal(resolveRemoteModelUpdate({
+    currentSnapshot: 'base', lastSavedSnapshot: 'base', remoteSnapshot: 'remote',
+    currentVersion: 3, remoteVersion: 4
+  }), 'apply');
+});
+
+test('protege cambios locales cuando llega una versión remota diferente', () => {
+  assert.equal(resolveRemoteModelUpdate({
+    currentSnapshot: 'local-dirty', lastSavedSnapshot: 'base', remoteSnapshot: 'remote',
+    currentVersion: 3, remoteVersion: 4
+  }), 'conflict');
+});
+
+test('reconoce el commit propio sin perder ediciones hechas mientras se guardaba', () => {
+  assert.equal(resolveRemoteModelUpdate({
+    currentSnapshot: 'newer-local-work', lastSavedSnapshot: 'base', remoteSnapshot: 'submitted-model',
+    currentVersion: 3, remoteVersion: 4,
+    pendingChangeId: 'change-123', remoteChangeId: 'change-123'
+  }), 'acknowledge');
+});
+
+test('ignora eventos STOMP duplicados o fuera de orden', () => {
+  assert.equal(resolveRemoteModelUpdate({
+    currentSnapshot: 'current', lastSavedSnapshot: 'current', remoteSnapshot: 'old',
+    currentVersion: 5, remoteVersion: 5
+  }), 'ignore');
 });

@@ -26,6 +26,19 @@ public class DeterministicUmlChatProvider implements ChatIAProvider {
 
     @Override
     public ChatIAProviderResult generate(String prompt) {
+        if (prompt != null && prompt.contains("MODO: REVISION_UML_INTEGRAL")) {
+            try {
+                var root = objectMapper.createObjectNode();
+                root.put("respuesta", "Revisión formal completada con el motor determinista. "
+                        + "Los hallazgos verificables se detallan en el informe compartido. "
+                        + "Las sugerencias de dominio requieren contexto adicional y se presentan solo si están justificadas.");
+                root.set("hallazgos", objectMapper.createArrayNode());
+                root.set("recomendaciones", objectMapper.createArrayNode());
+                return new ChatIAProviderResult(objectMapper.writeValueAsString(root), 0);
+            } catch (JacksonException e) {
+                throw new ChatIAProviderException("No se pudo serializar la revisión determinista", e);
+            }
+        }
         if (!isDirectUmlInstruction(prompt)) {
             throw new ChatIAProviderException(
                     "El motor determinista no admite esta consulta conversacional");

@@ -3,7 +3,9 @@ export type TipoEmisorChat = 'USUARIO' | 'IA' | 'SISTEMA';
 export type EstadoMensajeChat = 'ENVIADO' | 'PROCESANDO' | 'COMPLETADO' | 'ERROR';
 
 export type TipoCambioUml =
+  | 'AGREGAR_CLASE'
   | 'RENOMBRAR_CLASE'
+  | 'ELIMINAR_CLASE'
   | 'AGREGAR_ATRIBUTO'
   | 'MODIFICAR_ATRIBUTO'
   | 'ELIMINAR_ATRIBUTO'
@@ -48,7 +50,27 @@ export interface MetadatosMensajeChat {
   recomendacionId?: string;
   aplicadaPorId?: number;
   detalle?: string;
+  tipoInforme?: 'REVISION_UML';
+  diagramaNombre?: string;
+  fechaRevision?: string;
+  solicitanteId?: number;
+  solicitanteNombre?: string;
+  resumenRevision?: string;
+  hallazgos?: HallazgoRevisionUml[];
   [key: string]: any;
+}
+
+export interface HallazgoRevisionUml {
+  id: string;
+  severidad: 'ERROR' | 'ADVERTENCIA' | 'SUGERENCIA';
+  categoria: string;
+  elementoTipo: string;
+  elementoId?: string;
+  elementoNombre?: string;
+  explicacion: string;
+  evidencia: string;
+  propuesta: string;
+  estado: 'PENDIENTE' | 'APLICADA' | 'DESCARTADA' | 'OBSOLETA';
 }
 
 export interface MensajeChat {
@@ -118,6 +140,28 @@ export interface AplicarRecomendacionResponse {
   diagramaId: number;
   versionAnterior: number;
   versionNueva: number;
+  modeloJson: string;
+  mensajeSistema: MensajeChat;
+}
+
+export interface RevalidacionRecomendacionResponse {
+  recomendacionId: string;
+  diagramaId: number;
+  versionOriginal: number;
+  versionActual: number;
+  compatible: boolean;
+  pendienteDependencia: boolean;
+  dependenciaRequerida?: string | null;
+  estado: 'COMPATIBLE' | 'PENDIENTE_DEPENDENCIA' | 'OBSOLETA' | 'APLICADA' | 'DESCARTADA';
+  detalle?: string | null;
+}
+
+export interface AplicarLoteRecomendacionesResponse {
+  diagramaId: number;
+  versionAnterior: number;
+  versionNueva: number;
+  recomendacionesAplicadasIds: string[];
+  recomendacionesOmitidasIds: string[];
   modeloJson: string;
   mensajeSistema: MensajeChat;
 }

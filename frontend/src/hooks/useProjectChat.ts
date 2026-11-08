@@ -9,6 +9,8 @@ import type {
   SolicitudIAChatResponse,
   ActividadIAChat,
   AplicarRecomendacionResponse,
+  RevalidacionRecomendacionResponse,
+  AplicarLoteRecomendacionesResponse,
 } from '../types/chat';
 
 function generateUUID(): string {
@@ -40,8 +42,11 @@ interface UseProjectChatResult {
     metadatos?: Record<string, any>,
     onProgress?: (percent: number) => void
   ) => Promise<MensajeChat>;
-  consultarIA: (contenido: string, diagramaId: number | string) => Promise<MensajeChat>;
-  aplicarRecomendacion: (mensajeId: number, recomendacionId: string) => Promise<AplicarRecomendacionResponse>;
+  consultarIA: (contenido: string, diagramaId: number | string, tipoSolicitud?: 'CHAT' | 'REVISION_UML') => Promise<MensajeChat>;
+  aplicarRecomendacion: (mensajeId: number, recomendacionId: string, confirmarEliminacion?: boolean) => Promise<AplicarRecomendacionResponse>;
+  descartarRecomendacion: (mensajeId: number, recomendacionId: string) => Promise<MensajeChat>;
+  revalidarRecomendacion?: (mensajeId: number, recomendacionId: string) => Promise<RevalidacionRecomendacionResponse>;
+  aplicarCompatibles?: (mensajeId: number) => Promise<AplicarLoteRecomendacionesResponse>;
   cargarMas: () => Promise<void>;
   recargar: () => Promise<void>;
 }
@@ -246,7 +251,7 @@ export function useProjectChat(proyectoId: number | string | undefined): UseProj
   );
 
   const consultarIA = useCallback(
-    async (contenido: string, diagramaId: number | string): Promise<MensajeChat> => {
+    async (contenido: string, diagramaId: number | string, tipoSolicitud: 'CHAT' | 'REVISION_UML' = 'CHAT'): Promise<MensajeChat> => {
       if (!numericProyectoId) {
         throw new Error('No se ha especificado un proyecto válido');
       }
@@ -275,6 +280,7 @@ export function useProjectChat(proyectoId: number | string | undefined): UseProj
           metadatos: {
             origen: 'chat_ia',
             diagramaId: numericDiagramaId,
+            tipoSolicitud,
           },
         };
 
@@ -358,7 +364,7 @@ export function useProjectChat(proyectoId: number | string | undefined): UseProj
   );
 
   const aplicarRecomendacion = useCallback(
-    async (mensajeId: number, recomendacionId: string): Promise<AplicarRecomendacionResponse> => {
+    async (mensajeId: number, recomendacionId: string, confirmarEliminacion = false): Promise<AplicarRecomendacionResponse> => {
       if (!numericProyectoId) throw new Error('No se ha especificado un proyecto válido');
       if (applyingRecommendationId) throw new Error('Ya se está aplicando una recomendación');
       setApplyingRecommendationId(recomendacionId);
@@ -366,7 +372,7 @@ export function useProjectChat(proyectoId: number | string | undefined): UseProj
       try {
         const response = await api.post<AplicarRecomendacionResponse>(
           `/proyectos/${numericProyectoId}/chat/recomendaciones/${encodeURIComponent(recomendacionId)}/aplicar`,
-          { mensajeId }
+          { mensajeId, confirmarEliminacion }
         );
         const systemMessage = response.data.mensajeSistema;
         if (isMountedRef.current && systemMessage) {
@@ -389,6 +395,67 @@ export function useProjectChat(proyectoId: number | string | undefined): UseProj
       }
     },
     [applyingRecommendationId, numericProyectoId]
+  );
+
+  const descartarRecomendacion = useCallback(
+    async (mensajeId: number, recomendacionId: string): Promise<MensajeChat> => {
+      if (!numericProyectoId) throw new Error('No se ha especificado un proyecto válido');
+      setApplyingRecommendationId(recomendacionId);
+      try {
+        const response = await api.post<MensajeChat>(
+          `/proyectos/${numericProyectoId}/chat/recomendaciones/${encodeURIComponent(recomendacionId)}/descartar`,
+          { mensajeId, confirmarEliminacion: false }
+        );
+        if (isMountedRef.current) {
+          setMensajes(previous => previous.some(message => message.id === response.data.id)
+            ? previous : [...previous, response.data]);
+        }
+        return response.data;
+      } catch (err: any) {
+        throw new Error(err.response?.data?.message || 'No se pudo descartar la recomendación.');
+      } finally {
+        if (isMountedRef.current) setApplyingRecommendationId(null);
+      }
+    },
+    [numericProyectoId]
+  );
+
+  const revalidarRecomendacion = useCallback(
+    async (mensajeId: number, recomendacionId: string): Promise<RevalidacionRecomendacionResponse> => {
+      if (!numericProyectoId) throw new Error('No se ha especificado un proyecto válido');
+      const response = await api.get<RevalidacionRecomendacionResponse>(
+        `/proyectos/${numericProyectoId}/chat/recomendaciones/${encodeURIComponent(recomendacionId)}/revalidar`,
+        { params: { mensajeId } }
+      );
+      return response.data;
+    },
+    [numericProyectoId]
+  );
+
+  const aplicarCompatibles = useCallback(
+    async (mensajeId: number): Promise<AplicarLoteRecomendacionesResponse> => {
+      if (!numericProyectoId) throw new Error('No se ha especificado un proyecto válido');
+      setApplyingRecommendationId('LOTE');
+      try {
+        const response = await api.post<AplicarLoteRecomendacionesResponse>(
+          `/proyectos/${numericProyectoId}/chat/recomendaciones/mensajes/${mensajeId}/aplicar-compatibles`
+        );
+        const systemMessage = response.data.mensajeSistema;
+        if (isMountedRef.current && systemMessage) {
+          setMensajes((previous) => previous.some((message) => message.id === systemMessage.id)
+            ? previous
+            : [...previous, systemMessage]);
+        }
+        return response.data;
+      } catch (err: any) {
+        const message = err.response?.data?.message || 'No se pudieron aplicar las recomendaciones compatibles.';
+        if (isMountedRef.current) setError(message);
+        throw new Error(message);
+      } finally {
+        if (isMountedRef.current) setApplyingRecommendationId(null);
+      }
+    },
+    [numericProyectoId]
   );
 
   // Inicialización y Suscripción STOMP
@@ -476,6 +543,9 @@ export function useProjectChat(proyectoId: number | string | undefined): UseProj
     enviarMensajeConAdjuntos,
     consultarIA,
     aplicarRecomendacion,
+    descartarRecomendacion,
+    revalidarRecomendacion,
+    aplicarCompatibles,
     cargarMas,
     recargar,
   };

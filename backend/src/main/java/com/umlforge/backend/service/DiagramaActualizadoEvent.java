@@ -5,7 +5,9 @@ public record DiagramaActualizadoEvent(
         Long diagramaId,
         Long usuarioId,
         String usuarioNombre,
-        String recomendacionId,
+        String changeId,
+        String updateType,
+        String diagramName,
         Long version,
         String modeloJson) {
 }

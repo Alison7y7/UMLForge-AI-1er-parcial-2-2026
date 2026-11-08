@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../api/axios';
 import { useEditorStore } from '../store/editorStore';
@@ -64,6 +64,7 @@ import {
   modelFromEditorElements,
   modelToEditorElements,
   parsePersistedModel,
+  resolveRemoteModelUpdate,
   saveDiagramModel
 } from '../utils/editorPersistence';
 import { useCollaboration } from '../hooks/useCollaboration';
@@ -185,6 +186,10 @@ export default function UMLEditor() {
     setSelectedNodeId, setSelectedEdgeId
   } = useEditorStore();
 
+  const diagramClasses = useMemo(() => {
+    return (nodes || []).map(n => ({ id: n.id, nombre: (n.data?.nombre as string) || '' }));
+  }, [nodes]);
+
   const [nombreDiagrama, setNombreDiagrama] = useState('Cargando...');
   const [loading, setLoading] = useState(true);
   const [proyectoId, setProyectoId] = useState<number | null>(null);
@@ -192,14 +197,23 @@ export default function UMLEditor() {
   const [saveError, setSaveError] = useState('');
   const [diagramVersion, setDiagramVersion] = useState<number | undefined>(undefined);
   const [remoteConflict, setRemoteConflict] = useState('');
+  const [pendingRemoteUpdate, setPendingRemoteUpdate] = useState<any | null>(null);
   const [loadError, setLoadError] = useState('');
   const [modelWarnings, setModelWarnings] = useState<string[]>([]);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
   const [fitViewRequest, setFitViewRequest] = useState(0);
   const lastSavedSnapshotRef = useRef<string | null>(null);
+  const pendingChangeIdRef = useRef<string | null>(null);
   const nombreDiagramaRef = useRef(nombreDiagrama);
-  nombreDiagramaRef.current = nombreDiagrama;
+  const diagramVersionRef = useRef(diagramVersion);
+  const modelWarningsRef = useRef(modelWarnings);
+
+  useEffect(() => {
+    nombreDiagramaRef.current = nombreDiagrama;
+    diagramVersionRef.current = diagramVersion;
+    modelWarningsRef.current = modelWarnings;
+  }, [nombreDiagrama, diagramVersion, modelWarnings]);
 
   const handleUpdateNodeData = (nid: string, data: any) => {
     if (!canEdit) return;
@@ -274,6 +288,7 @@ export default function UMLEditor() {
         setEdges(loadedEdges);
         setSaveError('');
         setRemoteConflict('');
+        setPendingRemoteUpdate(null);
         setSaveStatus('saved');
         if (loaded.nodes.length > 0) setFitViewRequest(value => value + 1);
       } catch (error) {
@@ -297,10 +312,6 @@ export default function UMLEditor() {
 
   useEffect(() => {
     if (!diagramModelUpdate?.payload?.modeloJson) return;
-    if (saveStatus !== 'saved') {
-      setRemoteConflict('El diagrama cambió en otra sesión. Tus cambios locales se conservaron; guárdalos en otro lugar o recarga para resolver el conflicto.');
-      return;
-    }
     try {
       const parsed = parsePersistedModel(diagramModelUpdate.payload.modeloJson);
       const loaded = modelToEditorElements(parsed);
@@ -309,17 +320,51 @@ export default function UMLEditor() {
         markerEnd: getMarkerEnd(edge.data?.tipo as string)
       }));
       const normalized = modelFromEditorElements(loaded.nodes, loadedEdges, parsed.advertencias || []);
-      lastSavedSnapshotRef.current = diagramSnapshot(nombreDiagramaRef.current, normalized);
-      setModelWarnings(parsed.advertencias || []);
-      setNodes(loaded.nodes);
-      setEdges(loadedEdges);
+      const remoteName = diagramModelUpdate.payload.nombre || nombreDiagramaRef.current;
+      const remoteSnapshot = diagramSnapshot(remoteName, normalized);
+      const currentState = useEditorStore.getState();
+      const currentModel = modelFromEditorElements(
+        currentState.nodes,
+        currentState.edges,
+        modelWarningsRef.current
+      );
+      const currentSnapshot = diagramSnapshot(nombreDiagramaRef.current, currentModel);
+      const action = resolveRemoteModelUpdate({
+        currentSnapshot,
+        lastSavedSnapshot: lastSavedSnapshotRef.current,
+        remoteSnapshot,
+        currentVersion: diagramVersionRef.current,
+        remoteVersion: diagramModelUpdate.payload.version,
+        pendingChangeId: pendingChangeIdRef.current,
+        remoteChangeId: diagramModelUpdate.payload.changeId
+      });
+
+      if (action === 'ignore') return;
+      if (action === 'conflict') {
+        setPendingRemoteUpdate(diagramModelUpdate);
+        setRemoteConflict('Hay una versión remota nueva y también tienes cambios locales. Tu canvas no fue sobrescrito.');
+        return;
+      }
+
+      lastSavedSnapshotRef.current = remoteSnapshot;
       setDiagramVersion(diagramModelUpdate.payload.version);
       setRemoteConflict('');
-      setSaveStatus('saved');
+      setPendingRemoteUpdate(null);
+
+      if (action === 'apply' || currentSnapshot === remoteSnapshot) {
+        setNombreDiagrama(remoteName);
+        setModelWarnings(parsed.advertencias || []);
+        setNodes(loaded.nodes);
+        setEdges(loadedEdges);
+        setSaveStatus('saved');
+      } else {
+        // The own commit was confirmed while newer local edits were already in progress.
+        setSaveStatus('dirty');
+      }
     } catch {
       setRemoteConflict('Se recibió una actualización remota inválida; el canvas local no fue modificado.');
     }
-  }, [diagramModelUpdate, saveStatus, setNodes, setEdges]);
+  }, [diagramModelUpdate, setNodes, setEdges]);
 
   useEffect(() => {
     if (!reactFlowInstance || fitViewRequest === 0) return;
@@ -331,6 +376,46 @@ export default function UMLEditor() {
 
   const buildCurrentModel = (): UmlModelJson =>
     modelFromEditorElements(nodes, edges, modelWarnings);
+
+  const applyPendingRemoteUpdate = () => {
+    if (!pendingRemoteUpdate?.payload?.modeloJson) return;
+    try {
+      const parsed = parsePersistedModel(pendingRemoteUpdate.payload.modeloJson);
+      const loaded = modelToEditorElements(parsed);
+      const loadedEdges = loaded.edges.map(edge => ({
+        ...edge,
+        markerEnd: getMarkerEnd(edge.data?.tipo as string)
+      }));
+      const remoteName = pendingRemoteUpdate.payload.nombre || nombreDiagramaRef.current;
+      const normalized = modelFromEditorElements(loaded.nodes, loadedEdges, parsed.advertencias || []);
+      lastSavedSnapshotRef.current = diagramSnapshot(remoteName, normalized);
+      setNombreDiagrama(remoteName);
+      setModelWarnings(parsed.advertencias || []);
+      setNodes(loaded.nodes);
+      setEdges(loadedEdges);
+      setDiagramVersion(pendingRemoteUpdate.payload.version);
+      setPendingRemoteUpdate(null);
+      setRemoteConflict('');
+      setSaveError('');
+      setSaveStatus('saved');
+    } catch {
+      setRemoteConflict('La versión remota no es válida y no se aplicó.');
+    }
+  };
+
+  const downloadLocalConflictCopy = () => {
+    const localCopy = JSON.stringify({
+      nombre: nombreDiagrama,
+      versionBase: diagramVersion,
+      modelo: buildCurrentModel()
+    }, null, 2);
+    const url = URL.createObjectURL(new Blob([localCopy], { type: 'application/json' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `umlforge-${nombreDiagrama || 'diagrama'}-copia-local.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
   useEffect(() => {
     if (loading || !lastSavedSnapshotRef.current || saveStatus === 'saving' || saveStatus === 'error') {
@@ -350,15 +435,17 @@ export default function UMLEditor() {
 
     const nombreGuardado = nombreDiagrama;
     const submittedSnapshot = diagramSnapshot(nombreGuardado, modelo);
+    const changeId = globalThis.crypto?.randomUUID?.() || `manual-${Date.now()}-${Math.random()}`;
+    pendingChangeIdRef.current = changeId;
     setSaveStatus('saving');
     setSaveError('');
     try {
-      const newVersion = await saveDiagramModel(api, id, nombreGuardado, modelo, diagramVersion);
+      const newVersion = await saveDiagramModel(api, id, nombreGuardado, modelo, diagramVersion, changeId);
       if (newVersion !== undefined) setDiagramVersion(newVersion);
       lastSavedSnapshotRef.current = submittedSnapshot;
 
       const currentState = useEditorStore.getState();
-      const currentModel = modelFromEditorElements(currentState.nodes, currentState.edges);
+      const currentModel = modelFromEditorElements(currentState.nodes, currentState.edges, modelWarningsRef.current);
       const currentSnapshot = diagramSnapshot(nombreDiagramaRef.current, currentModel);
       setSaveStatus(currentSnapshot === submittedSnapshot ? 'saved' : 'dirty');
       return true;
@@ -366,10 +453,28 @@ export default function UMLEditor() {
       console.error('Error guardando:', error);
       setSaveStatus('error');
       const conflict = error?.response?.status === 409;
+      if (conflict) {
+        try {
+          const { data: latest } = await api.get(`/diagramas/${id}`);
+          setPendingRemoteUpdate({
+            payload: {
+              modeloJson: latest.modeloJson,
+              nombre: latest.nombre,
+              version: latest.version,
+              updateType: 'CONFLICT_REFRESH'
+            }
+          });
+          setRemoteConflict('Hay una versión remota nueva y también tienes cambios locales. Tu canvas no fue sobrescrito.');
+        } catch {
+          // The local model remains intact even if the conflict refresh fails.
+        }
+      }
       setSaveError(conflict
-        ? 'El diagrama cambió en otra sesión. Tus cambios siguen visibles; recarga o resuelve el conflicto antes de guardar.'
+        ? 'El diagrama cambió en otra sesión. Tus cambios siguen visibles; guarda una copia local y elige qué versión conservar.'
         : 'No se pudo guardar el diagrama. Los cambios siguen visibles y puedes reintentar.');
       return false;
+    } finally {
+      if (pendingChangeIdRef.current === changeId) pendingChangeIdRef.current = null;
     }
   };
 
@@ -1518,7 +1623,7 @@ export default function UMLEditor() {
               </button>
             </div>
           )}
-          {saveError && (
+          {saveError && !remoteConflict && (
             <div className="absolute left-1/2 top-4 z-30 flex max-w-xl -translate-x-1/2 items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 shadow-lg">
               <span>{saveError}</span>
               <button
@@ -1530,16 +1635,31 @@ export default function UMLEditor() {
               </button>
             </div>
           )}
-          {remoteConflict && !saveError && (
+          {remoteConflict && (
             <div className="absolute inset-x-3 top-4 z-30 mx-auto flex max-w-2xl items-center gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-lg">
               <span className="min-w-0 flex-1">{remoteConflict}</span>
-              <button
-                type="button"
-                onClick={() => setLoadAttempt(value => value + 1)}
-                className="shrink-0 font-bold underline"
-              >
-                Recargar
-              </button>
+              {pendingRemoteUpdate && (
+                <>
+                  <button
+                    type="button"
+                    onClick={downloadLocalConflictCopy}
+                    className="shrink-0 font-bold underline"
+                  >
+                    Descargar copia local
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm('Se reemplazará el canvas local por la versión confirmada del servidor.')) {
+                        applyPendingRemoteUpdate();
+                      }
+                    }}
+                    className="shrink-0 font-bold underline"
+                  >
+                    Usar versión remota
+                  </button>
+                </>
+              )}
             </div>
           )}
 
@@ -1931,7 +2051,9 @@ export default function UMLEditor() {
                   proyectoId={proyectoId}
                   diagramaId={id ? Number(id) : undefined}
                   diagramaNombre={nombreDiagrama}
+                  diagramaVersion={diagramVersion}
                   hasUnsavedChanges={saveStatus !== 'saved'}
+                  diagramClasses={diagramClasses}
                   variant="compact"
                   className="rounded-none border-none h-full shadow-none bg-transparent"
                 />
@@ -2013,7 +2135,9 @@ export default function UMLEditor() {
                     proyectoId={proyectoId}
                     diagramaId={id ? Number(id) : undefined}
                     diagramaNombre={nombreDiagrama}
+                    diagramaVersion={diagramVersion}
                     hasUnsavedChanges={saveStatus !== 'saved'}
+                    diagramClasses={diagramClasses}
                     variant="compact"
                     onClose={() => setIsRightPanelOpen(false)}
                     className="rounded-none border-none h-full shadow-none bg-transparent"

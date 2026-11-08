@@ -1,7 +1,8 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import type { MensajeChat, HistorialChatResponse } from '../../types/chat.ts';
+import type { MensajeChat, HistorialChatResponse, RecomendacionUml } from '../../types/chat.ts';
+import { evaluateRecommendationStatus } from '../../utils/recommendationRevalidation.ts';
 
 describe('CU16: Chat Colaborativo Compartido por Proyecto', () => {
   it('Orden cronológico: invierte mensajes descendentes del backend (más antiguos arriba, más recientes abajo)', () => {
@@ -385,7 +386,55 @@ describe('CU16: Chat Colaborativo Compartido por Proyecto', () => {
       assert.match(source, /openRecommendationReview\(rec, m\.id\)/);
       assert.match(source, /Confirmar y aplicar/);
       assert.match(source, /hasUnsavedChanges/);
-      assert.match(source, /aplicarRecomendacion\(revisandoMensajeId, revisandoRecomendacion\.id\)/);
+      assert.match(source, /aplicarRecomendacion\(revisandoMensajeId, revisandoRecomendacion\.id, destructive\)/);
+      assert.match(source, /window\.confirm/);
+    });
+
+    it('CU17 muestra acción de revisión e informe estructurado compartido', () => {
+      const source = readFileSync(new URL('./ProjectChat.tsx', import.meta.url), 'utf8');
+      assert.match(source, /Revisar diagrama con IA/);
+      assert.match(source, /'REVISION_UML'/);
+      assert.match(source, /Informe de revisión UML/);
+      assert.match(source, /hallazgos/);
+    });
+
+    it('CU18 distingue creación y eliminación de clases y recomendaciones obsoletas', () => {
+      const source = readFileSync(new URL('./ProjectChat.tsx', import.meta.url), 'utf8');
+      assert.match(source, /AGREGAR_CLASE/);
+      assert.match(source, /ELIMINAR_CLASE/);
+      assert.match(source, /Obsoleta/);
+      assert.match(source, /Descartada/);
+      assert.match(source, /descartarRecomendacion/);
+      assert.match(source, /Confirmar eliminación/);
+    });
+
+    it('CU17/CU18 Modal responsive: usa Portal a document.body, safe areas y evita recorte en móvil', () => {
+      const source = readFileSync(new URL('./ProjectChat.tsx', import.meta.url), 'utf8');
+      assert.match(source, /createPortal/);
+      assert.match(source, /document\.body/);
+      assert.match(source, /h-\[92dvh\]/);
+      assert.match(source, /safe-area-inset-bottom/);
+      assert.match(source, /overscroll-contain/);
+      assert.match(source, /closeRecommendationReview/);
+      assert.match(source, /e\.key === 'Escape'/);
+    });
+
+    it('CU17/CU18 Vista previa UML estructurada: visualiza clase, responsabilidad, atributos, métodos y relaciones', () => {
+      const source = readFileSync(new URL('./ProjectChat.tsx', import.meta.url), 'utf8');
+      assert.match(source, /UmlRecommendationPreview/);
+      assert.match(source, /Responsabilidad y Justificación/);
+      assert.match(source, /Atributos y tipos/);
+      assert.match(source, /Métodos y retornos/);
+      assert.match(source, /Relaciones propuestas/);
+      assert.match(source, /Detalles técnicos completos \(JSON\)/);
+      assert.match(source, /min-h-\[44px\]/);
+    });
+
+    it('CU17/CU18 Operaciones sobre existentes: muestra comparativa antes y después', () => {
+      const source = readFileSync(new URL('./ProjectChat.tsx', import.meta.url), 'utf8');
+      assert.match(source, /Antes \(Actual\)/);
+      assert.match(source, /Después \(Propuesto\)/);
+      assert.match(source, /Eliminación de la clase/);
     });
 
     it('Prevención de consultas simultáneas o duplicadas (Lock de sendingIA)', () => {
@@ -411,6 +460,94 @@ describe('CU16: Chat Colaborativo Compartido por Proyecto', () => {
       sendingIA = false;
       assert.equal(intentarConsultar(), true);
       assert.equal(consultCount, 2);
+    });
+
+    it('CU17/CU18 Permite revalidación y aplicación secuencial de Libro y Ejemplar de una misma revisión sin marcar obsoleta', () => {
+      const recLibro: RecomendacionUml = {
+        id: 'rec-libro',
+        diagramaId: 5,
+        versionDiagrama: 3,
+        tipoCambio: 'AGREGAR_CLASE',
+        descripcion: 'Crear clase Libro',
+        elementoAfectado: { tipo: 'CLASE', id: '', nombre: 'Libro' },
+        cambioPropuesto: { nombre: 'Libro', atributos: [{ nombre: 'titulo', tipo: 'String' }] },
+      };
+
+      const recEjemplar: RecomendacionUml = {
+        id: 'rec-ejemplar',
+        diagramaId: 5,
+        versionDiagrama: 3,
+        tipoCambio: 'AGREGAR_CLASE',
+        descripcion: 'Crear clase Ejemplar con relación a Libro',
+        elementoAfectado: { tipo: 'CLASE', id: '', nombre: 'Ejemplar' },
+        cambioPropuesto: {
+          nombre: 'Ejemplar',
+          atributos: [{ nombre: 'codigo', tipo: 'String' }],
+          relaciones: [{ destino: 'Libro', tipo: 'COMPOSICION' }],
+        },
+      };
+
+      const revisionRecs = [recLibro, recEjemplar];
+      const appliedIds = new Set<string>();
+      const discardedIds = new Set<string>();
+
+      // PASO 1: Antes de aplicar Libro en v3, Libro es compatible y Ejemplar detecta dependencia
+      const evLibroInicial = evaluateRecommendationStatus(
+        recLibro, appliedIds, discardedIds, 3, revisionRecs, []
+      );
+      assert.equal(evLibroInicial.status, 'COMPATIBLE');
+      assert.equal(evLibroInicial.isApplyDisabled, false);
+
+      const evEjemplarInicial = evaluateRecommendationStatus(
+        recEjemplar, appliedIds, discardedIds, 3, revisionRecs, []
+      );
+      assert.equal(evEjemplarInicial.status, 'PENDIENTE_DEPENDENCIA');
+      assert.equal(evEjemplarInicial.requiredDependency, 'Libro');
+      assert.equal(evEjemplarInicial.isApplyDisabled, true);
+
+      // PASO 2: Se aplica Libro. El diagrama avanza a v4 y ahora contiene a Libro
+      appliedIds.add('rec-libro');
+      const diagramClassesV4 = [{ id: 'uuid-libro-123', nombre: 'Libro' }];
+      const currentVersionV4 = 4;
+
+      // PASO 3: Revalidación de Ejemplar (originada en v3) contra el diagrama en v4
+      const evEjemplarV4 = evaluateRecommendationStatus(
+        recEjemplar, appliedIds, discardedIds, currentVersionV4, revisionRecs, diagramClassesV4
+      );
+
+      // Verificación clave: NO se marca como OBSOLETA a pesar de que versionDiagrama (3) !== currentVersion (4)
+      assert.notEqual(evEjemplarV4.status, 'OBSOLETA', 'Ejemplar no debe ser marcado como obsoleta al incrementar versión');
+      assert.equal(evEjemplarV4.status, 'COMPATIBLE');
+      assert.equal(evEjemplarV4.revalidatedAgainstCurrentVersion, true);
+      assert.equal(evEjemplarV4.isApplyDisabled, false, 'El botón de aplicar debe estar habilitado');
+      assert.equal(evEjemplarV4.badgeLabel, 'Compatible (v4)');
+
+      // PASO 4: Si Libro se intenta aplicar de nuevo, se detecta que ya existe en el diagrama
+      const evLibroDuplicado = evaluateRecommendationStatus(
+        recLibro, new Set(), discardedIds, currentVersionV4, revisionRecs, diagramClassesV4
+      );
+      assert.equal(evLibroDuplicado.status, 'OBSOLETA');
+      assert.equal(evLibroDuplicado.isApplyDisabled, true);
+      assert.match(evLibroDuplicado.reason || '', /ya existe en el modelo actual/i);
+    });
+
+    it('CU17/CU18 Detecta relaciones dependientes y dependencias rotas', () => {
+      const recRelacionInvalida: RecomendacionUml = {
+        id: 'rec-rel-invalida',
+        diagramaId: 5,
+        versionDiagrama: 3,
+        tipoCambio: 'AGREGAR_RELACION',
+        descripcion: 'Relacionar Inexistente con Otra',
+        elementoAfectado: { tipo: 'CLASE', id: '', nombre: 'Inexistente' },
+        cambioPropuesto: { origen: 'Inexistente', destino: 'Otra' },
+      };
+
+      const evInvalida = evaluateRecommendationStatus(
+        recRelacionInvalida, new Set(), new Set(), 3, [recRelacionInvalida], [{ id: 'c1', nombre: 'Libro' }]
+      );
+      assert.equal(evInvalida.status, 'OBSOLETA');
+      assert.equal(evInvalida.isApplyDisabled, true);
+      assert.match(evInvalida.reason || '', /no existe en el diagrama/i);
     });
   });
 });

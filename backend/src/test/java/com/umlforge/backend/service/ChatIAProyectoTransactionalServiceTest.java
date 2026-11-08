@@ -165,9 +165,64 @@ class ChatIAProyectoTransactionalServiceTest {
         verify(chat, never()).persistirMensajeInterno(any(), any(), anyString(), any(), anyString(), any());
     }
 
+    @Test
+    void revisionUmlPersisteInformeEstructuradoConVersionSolicitanteYHallazgos() {
+        pregunta.setMetadatos("{\"tipoSolicitud\":\"REVISION_UML\",\"diagramaId\":7}");
+        ChatIAProvider provider = provider("mock-review", 10, true);
+        when(provider.generate(contains("MODO: REVISION_UML_INTEGRAL"))).thenReturn(new ChatIAProviderResult("""
+                {"respuesta":"El modelo tiene buena base.","hallazgos":[{"severidad":"SUGERENCIA","categoria":"COHESION","elementoTipo":"CLASE","elementoId":"c1","elementoNombre":"Cliente","explicacion":"Puede explicitar responsabilidades.","evidencia":"Cliente no declara métodos.","propuesta":"Agregar operaciones solo si el dominio las requiere."}],"recomendaciones":[]}
+                """, 0));
+        when(chat.persistirMensajeInterno(eq(proyecto), eq(TipoEmisorChat.IA), anyString(),
+                eq(EstadoMensajeChat.COMPLETADO), eq("corr-1"), any(JsonNode.class)))
+                .thenReturn(new MensajeChatResponse(100L, 9L, null, "UMLForge IA",
+                        TipoEmisorChat.IA, "El modelo tiene buena base.", LocalDateTime.now(),
+                        EstadoMensajeChat.COMPLETADO, "corr-1", null));
+
+        service(List.of(provider)).procesar(9L, request(), "ada@test");
+
+        verify(chat).persistirMensajeInterno(eq(proyecto), eq(TipoEmisorChat.IA), anyString(),
+                eq(EstadoMensajeChat.COMPLETADO), eq("corr-1"), argThat(meta ->
+                        "CU17".equals(meta.path("cu").asText())
+                                && "REVISION_UML".equals(meta.path("tipoInforme").asText())
+                                && meta.path("diagramaVersion").asLong() == 4
+                                && meta.path("solicitanteId").asLong() == 5
+                                && meta.path("hallazgos").size() == 1));
+    }
+
+    @Test
+    void geminiYOpenRouterConservanAgregarRelacionEstructuradaEnElChatCompartido() {
+        diagrama.setId(5L);
+        diagrama.setModeloJson("""
+                {"clases":[{"id":"u1","nombre":"Usuario"},{"id":"l1","nombre":"Libro"}],"relaciones":[]}
+                """);
+        pregunta.setContenido("¿Cómo debería relacionar Usuario con Libro?");
+        String providerResponse = """
+                {"respuesta":"Una asociación directa es válida si todavía no necesitas datos propios del préstamo.","recomendaciones":[{"tipoCambio":"AGREGAR_RELACION","descripcion":"Relación recomendada: Usuario — Libro","elementoTipo":"CLASE","elementoId":"u1","cambioPropuesto":{"origen":"u1","destino":"l1","tipo":"ASOCIACION","nombre":"prestamos","multiplicidadOrigen":"0..*","multiplicidadDestino":"0..*","justificacion":"Confirmar las reglas de negocio antes de introducir una clase intermedia."}}]}
+                """;
+        when(chat.persistirMensajeInterno(eq(proyecto), eq(TipoEmisorChat.IA), anyString(),
+                eq(EstadoMensajeChat.COMPLETADO), eq("corr-1"), any(JsonNode.class)))
+                .thenReturn(new MensajeChatResponse(100L, 9L, null, "UMLForge IA",
+                        TipoEmisorChat.IA, "respuesta", LocalDateTime.now(),
+                        EstadoMensajeChat.COMPLETADO, "corr-1", null));
+
+        for (String providerName : List.of("gemini", "openrouter")) {
+            ChatIAProvider provider = provider(providerName, 10, true);
+            when(provider.generate(anyString())).thenReturn(new ChatIAProviderResult(providerResponse, 20));
+            var result = service(List.of(provider)).procesar(9L, request(), "ada@test");
+            assertThat(result.proveedor()).isEqualTo(providerName);
+        }
+
+        verify(chat, times(2)).persistirMensajeInterno(eq(proyecto), eq(TipoEmisorChat.IA), anyString(),
+                eq(EstadoMensajeChat.COMPLETADO), eq("corr-1"), argThat(meta ->
+                        meta.path("recomendaciones").size() == 1
+                                && "AGREGAR_RELACION".equals(meta.path("recomendaciones").get(0).path("tipoCambio").asText())
+                                && "l1".equals(meta.path("recomendaciones").get(0).path("cambioPropuesto").path("destino").asText())));
+    }
+
     private ChatIAProyectoTransactionalService service(List<ChatIAProvider> providers) {
         return new ChatIAProyectoTransactionalService(access, mensajes, solicitudes, bitacora, chat,
-                new ChatIAPromptBuilder(mapper), new ChatIAResponseParser(mapper), providers, mapper);
+                new ChatIAPromptBuilder(mapper), new ChatIAResponseParser(mapper),
+                new UmlDeterministicReviewService(mapper), providers, mapper);
     }
 
     private ChatIAProvider provider(String name, int priority, boolean available) {

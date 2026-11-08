@@ -34,6 +34,7 @@ public class ChatIAProyectoTransactionalService {
     private final ChatProyectoService chatService;
     private final ChatIAPromptBuilder promptBuilder;
     private final ChatIAResponseParser responseParser;
+    private final UmlDeterministicReviewService deterministicReviewService;
     private final List<ChatIAProvider> providers;
     private final ObjectMapper mapper;
 
@@ -89,7 +90,8 @@ public class ChatIAProyectoTransactionalService {
             ChatIAProvider provider, ChatIAProviderResult result, ChatIAParsedResponse parsed,
             String solicitudId) {
         var metadata = mapper.createObjectNode();
-        metadata.put("cu", "CU16");
+        boolean review = isReviewRequest(mensajeUsuario);
+        metadata.put("cu", review ? "CU17" : "CU16");
         metadata.put("solicitudId", solicitudId);
         metadata.put("proveedor", provider.getName());
         metadata.put("diagramaId", diagrama.getId());
@@ -99,6 +101,18 @@ public class ChatIAProyectoTransactionalService {
         metadata.put("recomendacionesDescartadas", parsed.recomendacionesDescartadas());
         metadata.put("requiereConfirmacion", !parsed.recomendaciones().isEmpty());
         metadata.set("recomendaciones", mapper.valueToTree(parsed.recomendaciones()));
+        if (review) {
+            List<com.umlforge.backend.dto.HallazgoRevisionUml> findings = new ArrayList<>(
+                    deterministicReviewService.analyze(diagrama));
+            findings.addAll(parsed.hallazgos());
+            metadata.put("tipoInforme", "REVISION_UML");
+            metadata.put("diagramaNombre", diagrama.getNombre());
+            metadata.put("fechaRevision", LocalDateTime.now().toString());
+            metadata.put("solicitanteId", mensajeUsuario.getUsuarioEmisor().getId());
+            metadata.put("solicitanteNombre", fullName(mensajeUsuario.getUsuarioEmisor()));
+            metadata.put("resumenRevision", parsed.respuesta());
+            metadata.set("hallazgos", mapper.valueToTree(findings));
+        }
         MensajeChatResponse mensaje = chatService.persistirMensajeInterno(proyecto, TipoEmisorChat.IA,
                 parsed.respuesta(), EstadoMensajeChat.COMPLETADO,
                 mensajeUsuario.getCorrelacionId(), metadata);
@@ -108,6 +122,20 @@ public class ChatIAProyectoTransactionalService {
         solicitud.setFechaFinalizacion(LocalDateTime.now());
         solicitudRepository.save(solicitud);
         return mensaje;
+    }
+
+    private boolean isReviewRequest(MensajeChatProyecto request) {
+        try {
+            return "REVISION_UML".equals(mapper.readTree(request.getMetadatos()).path("tipoSolicitud").asText());
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    private String fullName(Usuario user) {
+        String full = ((user.getNombre() == null ? "" : user.getNombre()) + " "
+                + (user.getApellido() == null ? "" : user.getApellido())).trim();
+        return full.isBlank() ? user.getCorreo() : full;
     }
 
     private SolicitudIAChatResponse persistirError(Proyecto proyecto, Diagrama diagrama,
