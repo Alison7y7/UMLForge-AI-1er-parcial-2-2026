@@ -1,5 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { formatRole, isRoleColaborador, isRoleAnfitrion, isRoleAdmin } from '../utils/roleUtils.ts';
 
 describe('FASE 3: Adaptación del Editor UML para Celulares y Tablets', () => {
@@ -105,7 +106,7 @@ describe('FASE 3: Adaptación del Editor UML para Celulares y Tablets', () => {
     assert.equal(pendingRelationSourceId, null);
   });
 
-  it('Detección de relación M:N y generación de clase de asociación Detalle (CU9)', () => {
+  it('acepta relación M:N sin imponer una clase de asociación', () => {
     const isMN = (mult: string) => /^\*$|^[0-9]+\.\.\*$|^n$|^N$/.test((mult || '').trim());
 
     assert.equal(isMN('*'), true);
@@ -118,8 +119,11 @@ describe('FASE 3: Adaptación del Editor UML para Celulares y Tablets', () => {
 
     const multOrigen = '*';
     const multDestino = '1..*';
-    const requiresAssociationClass = isMN(multOrigen) && isMN(multDestino);
-    assert.equal(requiresAssociationClass, true, 'M:N debe requerir clase asociativa');
+    const isManyToMany = isMN(multOrigen) && isMN(multDestino);
+    assert.equal(isManyToMany, true);
+    const editorSource = readFileSync(new URL('../pages/UMLEditor.tsx', import.meta.url), 'utf8');
+    assert.doesNotMatch(editorSource, /mergedData\.claseAsociacion\s*=/,
+      'Una relación N:M no debe crear automáticamente una clase intermedia');
   });
 
   it('Controles de la barra inferior móvil y áreas táctiles (Requisito 5)', () => {

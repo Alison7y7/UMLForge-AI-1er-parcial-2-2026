@@ -19,7 +19,11 @@ import tools.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
+import java.util.Set;
 
 import static org.springframework.http.HttpStatus.*;
 
@@ -58,11 +62,21 @@ public class ChatIAProyectoTransactionalService {
         SolicitudIAChatProyecto solicitud = nuevaSolicitud(request, proyecto, diagrama, mensajeUsuario, usuario);
         solicitudRepository.saveAndFlush(solicitud);
 
-        List<MensajeChatProyecto> historial = mensajeRepository
-                .findByProyectoIdOrderByFechaHoraDescIdDesc(proyectoId, PageRequest.of(0, 30));
-        List<Bitacora> actividades = bitacoraRepository
-                .findByProyectoIdOrderByFechaHoraDesc(proyectoId, PageRequest.of(0, 20));
-        String prompt = promptBuilder.build(diagrama, historial, actividades, mensajeUsuario);
+        List<MensajeChatProyecto> historialBase = mensajeRepository
+                .findByProyectoIdOrderByFechaHoraDescIdDesc(proyectoId, PageRequest.of(0, 80)).stream()
+                .filter(message -> !Objects.equals(message.getId(), mensajeUsuario.getId())).toList();
+        List<Bitacora> actividadesBase = bitacoraRepository
+                .findByProyectoIdOrderByFechaHoraDesc(proyectoId, PageRequest.of(0, 60));
+        List<MensajeChatProyecto> historial = relevantes(historialBase, mensajeUsuario.getContenido(), 18,
+                message -> message.getContenido());
+        List<Bitacora> actividades = relevantes(actividadesBase, mensajeUsuario.getContenido(), 12,
+                activity -> activity.getAccion() + " " + activity.getDescripcion());
+        String evidencia = evidenciaPersistida(historial, actividades);
+        String prompt = promptBuilder.build(diagrama, historial, actividades, mensajeUsuario, evidencia);
+
+        if (preguntaHistorica(mensajeUsuario.getContenido()) && historial.isEmpty() && actividades.isEmpty()) {
+            return persistirSinEvidencia(proyecto, diagrama, mensajeUsuario, solicitud, request.solicitudId());
+        }
 
         List<String> errores = new ArrayList<>();
         for (ChatIAProvider provider : providers.stream()
@@ -101,6 +115,8 @@ public class ChatIAProyectoTransactionalService {
         metadata.put("recomendacionesDescartadas", parsed.recomendacionesDescartadas());
         metadata.put("requiereConfirmacion", !parsed.recomendaciones().isEmpty());
         metadata.set("recomendaciones", mapper.valueToTree(parsed.recomendaciones()));
+        metadata.set("alternativas", mapper.valueToTree(parsed.alternativas()));
+        metadata.put("requiereSeleccionAlternativa", !parsed.alternativas().isEmpty());
         if (review) {
             List<com.umlforge.backend.dto.HallazgoRevisionUml> findings = new ArrayList<>(
                     deterministicReviewService.analyze(diagrama));
@@ -197,5 +213,56 @@ public class ChatIAProyectoTransactionalService {
 
     private String recortar(String value, int max) {
         return value.length() <= max ? value : value.substring(0, max);
+    }
+
+    private <T> List<T> relevantes(List<T> candidates, String query, int limit,
+            java.util.function.Function<T, String> textExtractor) {
+        Set<String> terms = new HashSet<>();
+        for (String value : query.toLowerCase(Locale.ROOT).split("[^\\p{L}\\p{N}]+")) {
+            if (value.length() >= 4) terms.add(value);
+        }
+        boolean temporal = query.toLowerCase(Locale.ROOT).matches(".*(ayer|hoy|antes|ultimo|último|reciente|pendiente|historial|cambio).*" );
+        List<T> selected = new ArrayList<>();
+        for (T candidate : candidates) {
+            String text = String.valueOf(textExtractor.apply(candidate)).toLowerCase(Locale.ROOT);
+            if (temporal || terms.stream().anyMatch(text::contains)) selected.add(candidate);
+            if (selected.size() == limit) break;
+        }
+        if (selected.isEmpty()) selected.addAll(candidates.stream().limit(Math.min(6, limit)).toList());
+        return selected;
+    }
+
+    private String evidenciaPersistida(List<MensajeChatProyecto> messages, List<Bitacora> activities) {
+        if (messages.isEmpty() && activities.isEmpty()) {
+            return "No se encontraron registros persistidos relevantes; indicalo sin completar vacios con suposiciones.";
+        }
+        return "La evidencia siguiente fue recuperada de PostgreSQL y puede contener propuestas, no hechos. "
+                + "Solo los mensajes SISTEMA y acciones de bitacora que declaran una aplicacion representan acciones ejecutadas. "
+                + "Las respuestas IA y sus recomendaciones siguen siendo propuestas salvo evidencia explicita de aplicacion.";
+    }
+
+    private boolean preguntaHistorica(String query) {
+        return query.toLowerCase(Locale.ROOT)
+                .matches(".*(ayer|anterior|historial|ultima sesión|última sesión|hicimos|decidimos|aprobamos|pendiente).*" );
+    }
+
+    private SolicitudIAChatResponse persistirSinEvidencia(Proyecto proyecto, Diagrama diagrama,
+            MensajeChatProyecto mensajeUsuario, SolicitudIAChatProyecto solicitud, String solicitudId) {
+        String response = "No se encontró evidencia histórica suficiente en los registros persistidos de este proyecto para responder esa pregunta.";
+        var metadata = mapper.createObjectNode();
+        metadata.put("cu", "CU19");
+        metadata.put("solicitudId", solicitudId);
+        metadata.put("diagramaId", diagrama.getId());
+        metadata.put("evidenciaHistoricaSuficiente", false);
+        metadata.putArray("recomendaciones");
+        MensajeChatResponse message = chatService.persistirMensajeInterno(proyecto, TipoEmisorChat.IA,
+                response, EstadoMensajeChat.COMPLETADO, mensajeUsuario.getCorrelacionId(), metadata);
+        solicitud.setEstado(EstadoSolicitudIAChat.COMPLETADA);
+        solicitud.setProveedor("contexto-persistido");
+        solicitud.setMensajeRespuesta(mensajeRepository.getReferenceById(message.id()));
+        solicitud.setFechaFinalizacion(LocalDateTime.now());
+        solicitudRepository.save(solicitud);
+        return new SolicitudIAChatResponse(solicitudId, EstadoSolicitudIAChat.COMPLETADA,
+                "contexto-persistido", message);
     }
 }

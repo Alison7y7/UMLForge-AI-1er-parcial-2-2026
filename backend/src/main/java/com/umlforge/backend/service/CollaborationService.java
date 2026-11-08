@@ -15,6 +15,7 @@ import java.util.concurrent.ConcurrentLinkedDeque;
 
 @Service
 public class CollaborationService {
+    private static final long PRESENCE_TIMEOUT_MS = 90_000L;
 
     private final SimpMessageSendingOperations messagingTemplate;
     private final DiagramaRepository diagramaRepository;
@@ -66,7 +67,7 @@ public class CollaborationService {
         );
         boolean firstSession = userSessions.isEmpty();
         userSessions.add(sessionId);
-        sessionMap.put(sessionId, new SessionInfo(diagramaId, userId));
+        sessionMap.put(sessionId, new SessionInfo(diagramaId, userId, System.currentTimeMillis()));
 
         String nombreCompleto = getNombreCompleto(user);
         String rol = user.getRol() != null ? user.getRol().getNombre() : "";
@@ -162,7 +163,23 @@ public class CollaborationService {
     }
 
     public void requestPresence(Long diagramaId) {
+        pruneExpiredSessions();
         broadcastPresence(diagramaId);
+    }
+
+    public synchronized void touchSession(String sessionId) {
+        if (sessionId == null) return;
+        SessionInfo info = sessionMap.get(sessionId);
+        if (info != null) info.lastSeen = System.currentTimeMillis();
+        pruneExpiredSessions();
+    }
+
+    private void pruneExpiredSessions() {
+        long cutoff = System.currentTimeMillis() - PRESENCE_TIMEOUT_MS;
+        List<String> expired = sessionMap.entrySet().stream()
+                .filter(entry -> entry.getValue().lastSeen < cutoff)
+                .map(Map.Entry::getKey).toList();
+        expired.forEach(this::userLeft);
     }
 
     private void releaseUserLocks(Long diagramaId, Long userId) {
@@ -202,10 +219,12 @@ public class CollaborationService {
     private static class SessionInfo {
         private final Long diagramaId;
         private final Long usuarioId;
+        private volatile long lastSeen;
 
-        public SessionInfo(Long diagramaId, Long usuarioId) {
+        public SessionInfo(Long diagramaId, Long usuarioId, long lastSeen) {
             this.diagramaId = diagramaId;
             this.usuarioId = usuarioId;
+            this.lastSeen = lastSeen;
         }
     }
 

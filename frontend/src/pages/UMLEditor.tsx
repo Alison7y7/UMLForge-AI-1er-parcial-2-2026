@@ -68,6 +68,8 @@ import {
   saveDiagramModel
 } from '../utils/editorPersistence';
 import { useCollaboration } from '../hooks/useCollaboration';
+import { useProjectRecentActivity } from '../hooks/useProjectRecentActivity';
+import { formatActivityDate } from '../utils/projectActivity';
 import ProjectChat from '../components/chat/ProjectChat';
 
 const nodeTypes = { umlClass: UmlClassNode };
@@ -193,6 +195,7 @@ export default function UMLEditor() {
   const [nombreDiagrama, setNombreDiagrama] = useState('Cargando...');
   const [loading, setLoading] = useState(true);
   const [proyectoId, setProyectoId] = useState<number | null>(null);
+  const recentActivity = useProjectRecentActivity(proyectoId, diagramModelUpdate);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
   const [saveError, setSaveError] = useState('');
   const [diagramVersion, setDiagramVersion] = useState<number | undefined>(undefined);
@@ -208,6 +211,11 @@ export default function UMLEditor() {
   const nombreDiagramaRef = useRef(nombreDiagrama);
   const diagramVersionRef = useRef(diagramVersion);
   const modelWarningsRef = useRef(modelWarnings);
+
+  const openProjectHistory = () => {
+    if (proyectoId) navigate(`/proyectos/${proyectoId}?tab=historial`);
+    else setShowHistory(true);
+  };
 
   useEffect(() => {
     nombreDiagramaRef.current = nombreDiagrama;
@@ -229,34 +237,8 @@ export default function UMLEditor() {
 
     const mergedData = { ...edge.data, ...data };
     
-    // Detectar M:N
-    const isMN = (mult: string) => /^\*$|^[0-9]+\.\.\*$|^n$|^N$/.test((mult || '').trim());
-      
-    if (isMN(mergedData.multiplicidadOrigen) && isMN(mergedData.multiplicidadDestino)) {
-      if (!mergedData.claseAsociacion) {
-        const sourceNode = nodes.find(n => n.id === edge.source);
-        const targetNode = nodes.find(n => n.id === edge.target);
-        if (sourceNode && targetNode) {
-          const posX = (sourceNode.position.x + targetNode.position.x) / 2;
-          const posY = (sourceNode.position.y + targetNode.position.y) / 2 + 100;
-          const interId = generateId();
-          const interNode = {
-             id: interId,
-             type: 'umlClass',
-             position: { x: posX, y: posY },
-             data: {
-               nombre: 'Detalle',
-               atributos: [],
-               metodos: []
-             }
-          };
-          mergedData.claseAsociacion = interId;
-          setNodes([...nodes, interNode as any]);
-          broadcastEvent('NODE_CREATED', interId, interNode);
-        }
-      }
-    }
-    
+    // Una asociación N:M es UML válido. Crear una clase intermedia requiere
+    // una decisión explícita del usuario o una recomendación confirmada.
     const newEdge = { ...edge, data: mergedData };
     setEdges(edges.map(e => e.id === eid ? newEdge : e));
     broadcastEvent('EDGE_UPDATED', eid, newEdge);
@@ -1299,21 +1281,34 @@ export default function UMLEditor() {
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Actividad reciente</h3>
           <button 
-            onClick={() => setShowHistory(true)} 
+            onClick={openProjectHistory}
             className="text-[11px] font-bold bg-lila-light/20 text-lila-main px-2.5 py-1 rounded-lg hover:bg-lila-light/40 transition-colors"
           >
             Ver historial
           </button>
         </div>
         <div className="space-y-2.5">
-          {historyEvents.slice(0, 8).map((ev: any, idx: number) => (
-            <div key={idx} className="text-xs text-gray-600 border-l-2 border-lila-light pl-2.5 py-0.5">
-              <span className="font-bold text-gray-800">{ev.usuarioNombre || 'Usuario'}</span>
-              {" "}
-              {getActivityDescription(ev.tipoEvento)}
+          {recentActivity.loading && <div className="text-xs text-gray-400">Cargando actividad…</div>}
+          {!recentActivity.loading && recentActivity.error && (
+            <div className="rounded-xl bg-red-50 border border-red-100 p-3 text-xs text-red-700">
+              <p>{recentActivity.error}</p>
+              <button type="button" onClick={() => void recentActivity.retry()} className="mt-2 font-bold underline">Reintentar</button>
+            </div>
+          )}
+          {!recentActivity.loading && !recentActivity.error && recentActivity.events.map(event => (
+            <div key={event.id} className="text-xs text-gray-600 border-l-2 border-lila-light pl-2.5 py-1.5 min-w-0">
+              <div className="flex items-start justify-between gap-2">
+                <span className="font-bold text-gray-800 break-words">{event.participanteNombre || 'Sistema'}</span>
+                <time dateTime={event.fechaHora} className="text-[10px] text-gray-400 whitespace-nowrap">{formatActivityDate(event.fechaHora)}</time>
+              </div>
+              <p className="mt-0.5 text-gray-700 break-words">{event.titulo}</p>
+              <p className="mt-0.5 text-[11px] text-gray-500 line-clamp-2 break-words">{event.detalle}</p>
+              {event.diagramaNombre && <span className="inline-block mt-1 text-[10px] font-semibold text-lila-main">{event.diagramaNombre}</span>}
             </div>
           ))}
-          {historyEvents.length === 0 && <div className="text-xs text-gray-400">Sin actividad reciente.</div>}
+          {!recentActivity.loading && !recentActivity.error && recentActivity.events.length === 0 && (
+            <div className="text-xs text-gray-400">Todavía no hay actividad registrada.</div>
+          )}
         </div>
       </div>
     </div>
@@ -1435,7 +1430,7 @@ export default function UMLEditor() {
             {/* 3. Botón de Historial de Actividad (visible en pantallas grandes) */}
             <button
               type="button"
-              onClick={() => setShowHistory(true)}
+              onClick={openProjectHistory}
               className="hidden lg:flex px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-100 rounded-xl transition-colors items-center gap-1.5"
               title="Historial de actividad"
             >
@@ -1484,7 +1479,7 @@ export default function UMLEditor() {
                   <button onClick={() => { setIsMobileMenuOpen(false); handleOpenVoice(); }} className="px-3 py-2 text-left text-xs font-medium text-gray-700 hover:bg-lila-light/20 rounded-xl transition-colors flex items-center gap-2">
                     <Mic className="w-4 h-4 text-lila-main" /> Control por Voz
                   </button>
-                  <button onClick={() => { setIsMobileMenuOpen(false); setShowHistory(true); }} className="px-3 py-2 text-left text-xs font-medium text-gray-700 hover:bg-lila-light/20 rounded-xl transition-colors flex items-center gap-2">
+                  <button onClick={() => { setIsMobileMenuOpen(false); openProjectHistory(); }} className="px-3 py-2 text-left text-xs font-medium text-gray-700 hover:bg-lila-light/20 rounded-xl transition-colors flex items-center gap-2">
                     <Users className="w-4 h-4 text-lila-main" /> Actividad y Presencia
                   </button>
                   <button onClick={() => { setIsMobileMenuOpen(false); setShowIaModal(true); }} className="px-3 py-2 text-left text-xs font-medium text-gray-700 hover:bg-lila-light/20 rounded-xl transition-colors flex items-center gap-2">

@@ -723,6 +723,7 @@ interface ProjectChatProps {
   className?: string;
   hasUnsavedChanges?: boolean;
   diagramClasses?: Array<{ id: string; nombre: string }>;
+  initialPrompt?: string;
 }
 
 export default function ProjectChat({
@@ -736,6 +737,7 @@ export default function ProjectChat({
   className = '',
   hasUnsavedChanges = false,
   diagramClasses = [],
+  initialPrompt,
 }: ProjectChatProps) {
   const { user } = useAuthStore();
   const {
@@ -752,6 +754,8 @@ export default function ProjectChat({
     enviarMensaje,
     enviarMensajeConAdjuntos,
     consultarIA,
+    elegirAlternativa,
+    descartarAlternativa,
     aplicarRecomendacion,
     descartarRecomendacion,
     aplicarCompatibles,
@@ -759,11 +763,12 @@ export default function ProjectChat({
     recargar,
   } = useProjectChat(proyectoId);
 
-  const [inputTexto, setInputTexto] = useState('');
-  const [modoIA, setModoIA] = useState<boolean>(false);
+  const [inputTexto, setInputTexto] = useState(initialPrompt || '');
+  const [modoIA, setModoIA] = useState<boolean>(Boolean(initialPrompt));
   const [revisandoRecomendacion, setRevisandoRecomendacion] = useState<RecomendacionUml | null>(null);
   const [revisandoMensajeId, setRevisandoMensajeId] = useState<number | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [choosingAlternativeId, setChoosingAlternativeId] = useState<string | null>(null);
   const [pendingFiles, setPendingFiles] = useState<Array<{ file: File; preview?: string }>>([]);
   const [recording, setRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
@@ -892,6 +897,32 @@ export default function ProjectChat({
       closeRecommendationReview();
     } catch (discardError: any) {
       setLocalError(discardError.message || 'No se pudo descartar la recomendación.');
+    }
+  };
+
+  const handleChooseAlternative = async (messageId: number, alternativeId: string) => {
+    setLocalError(null);
+    setChoosingAlternativeId(alternativeId);
+    try {
+      await elegirAlternativa(messageId, alternativeId);
+    } catch (selectionError: any) {
+      setLocalError(selectionError.response?.data?.message || selectionError.message
+        || 'No se pudo elegir la alternativa.');
+    } finally {
+      setChoosingAlternativeId(null);
+    }
+  };
+
+  const handleDiscardAlternative = async (messageId: number, alternativeId: string) => {
+    setLocalError(null);
+    setChoosingAlternativeId(alternativeId);
+    try {
+      await descartarAlternativa(messageId, alternativeId);
+    } catch (discardError: any) {
+      setLocalError(discardError.response?.data?.message || discardError.message
+        || 'No se pudo descartar la alternativa.');
+    } finally {
+      setChoosingAlternativeId(null);
     }
   };
 
@@ -1210,7 +1241,7 @@ export default function ProjectChat({
         if (!diagramaId) {
           throw new Error('Para consultar a la IA, debes tener un diagrama abierto en el editor UML.');
         }
-        await consultarIA(texto, Number(diagramaId));
+        await consultarIA(texto, Number(diagramaId), 'CHAT', hasUnsavedChanges);
       } else if (archivos.length > 0) {
         setUploadProgress(0);
         await enviarMensajeConAdjuntos(texto, archivos, {
@@ -1537,6 +1568,48 @@ export default function ProjectChat({
                               );
                             })}
                           </div>
+                        </div>
+                      )}
+
+                      {(m.metadatos?.alternativas || []).length > 0 && (
+                        <div className="pt-2 border-t border-purple-100/90 space-y-2">
+                          <div className="text-xs font-bold text-purple-950 flex items-center gap-1.5">
+                            <Layers className="w-3.5 h-3.5" /> Alternativas de diseño
+                          </div>
+                          <p className="text-[11px] text-gray-600">
+                            Elige una alternativa para preparar sus cambios. Elegir no modifica el diagrama.
+                          </p>
+                          {(m.metadatos?.alternativas || []).map((option) => {
+                            const selected = m.metadatos?.alternativaSeleccionadaId === option.id;
+                            const discarded = (m.metadatos?.alternativasDescartadasIds || []).includes(option.id);
+                            return (
+                              <div key={option.id} className={`p-3 rounded-xl border space-y-2 ${selected ? 'border-green-300 bg-green-50/70' : 'border-purple-200 bg-white'}`}>
+                                <div className="flex items-start justify-between gap-2">
+                                  <div>
+                                    <p className="text-xs font-bold text-gray-900">{option.nombre}</p>
+                                    <p className="text-[11px] text-gray-600 mt-0.5">{option.descripcion}</p>
+                                  </div>
+                                  {option.recomendada && <span className="text-[10px] font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full">Recomendada</span>}
+                                </div>
+                                {option.ventajas?.length > 0 && <p className="text-[11px] text-green-800"><strong>Ventajas:</strong> {option.ventajas.join(' · ')}</p>}
+                                {option.limitaciones?.length > 0 && <p className="text-[11px] text-amber-800"><strong>Limitaciones:</strong> {option.limitaciones.join(' · ')}</p>}
+                                {option.requisitosFaltantes && <p className="text-[11px] text-gray-600"><strong>Falta confirmar:</strong> {option.requisitosFaltantes}</p>}
+                                <p className="text-[10px] text-gray-500">{option.recomendaciones?.length || 0} cambio(s) para revisar</p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                  <button type="button" onClick={() => void handleChooseAlternative(m.id, option.id)}
+                                    disabled={selected || discarded || Boolean(m.metadatos?.alternativaSeleccionadaId) || choosingAlternativeId === option.id}
+                                    className="min-h-[40px] rounded-lg text-xs font-bold bg-purple-600 text-white hover:bg-purple-700 disabled:bg-gray-200 disabled:text-gray-500">
+                                    {selected ? 'Alternativa elegida' : discarded ? 'Descartada' : choosingAlternativeId === option.id ? 'Preparando…' : 'Elegir esta alternativa'}
+                                  </button>
+                                  <button type="button" onClick={() => void handleDiscardAlternative(m.id, option.id)}
+                                    disabled={selected || discarded || Boolean(m.metadatos?.alternativaSeleccionadaId) || choosingAlternativeId === option.id}
+                                    className="min-h-[40px] rounded-lg text-xs font-bold border border-gray-300 text-gray-700 hover:bg-gray-100 disabled:opacity-40">
+                                    Descartar alternativa
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
 

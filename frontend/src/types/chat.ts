@@ -35,6 +35,17 @@ export interface RecomendacionUml {
   cambioPropuesto: any;
 }
 
+export interface AlternativaDisenoUml {
+  id: string;
+  nombre: string;
+  descripcion: string;
+  ventajas: string[];
+  limitaciones: string[];
+  requisitosFaltantes?: string;
+  recomendada?: boolean;
+  recomendaciones: RecomendacionUml[];
+}
+
 export interface MetadatosMensajeChat {
   cu?: string;
   solicitudId?: string;
@@ -46,6 +57,10 @@ export interface MetadatosMensajeChat {
   recomendacionesDescartadas?: number;
   requiereConfirmacion?: boolean;
   recomendaciones?: RecomendacionUml[];
+  alternativas?: AlternativaDisenoUml[];
+  alternativaSeleccionadaId?: string;
+  alternativasDescartadasIds?: string[];
+  requiereSeleccionAlternativa?: boolean;
   evento?: string;
   recomendacionId?: string;
   aplicadaPorId?: number;

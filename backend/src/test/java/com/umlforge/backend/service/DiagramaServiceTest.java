@@ -31,7 +31,8 @@ class DiagramaServiceTest {
 
     @BeforeEach
     void setup() {
-        service = new DiagramaService(diagrams, projects, audit, access, events);
+        service = new DiagramaService(diagrams, projects, audit, access, events,
+                new tools.jackson.databind.ObjectMapper());
         Proyecto project = new Proyecto();
         project.setId(2L);
         Rol role = new Rol();
@@ -89,5 +90,25 @@ class DiagramaServiceTest {
                 .isEqualTo(409);
         verify(diagrams, never()).saveAndFlush(any());
         verifyNoInteractions(events);
+    }
+
+    @Test
+    void auditaClaseYRelacionesEliminadasConVersiones() {
+        diagram.setModeloJson("""
+                {"clases":[{"id":"prestamo-1","nombre":"Prestamo"},{"id":"libro-1","nombre":"Libro"}],
+                 "relaciones":[{"id":"rel-1","origen":"prestamo-1","destino":"libro-1"}]}
+                """);
+        DiagramaRequest request = new DiagramaRequest();
+        request.setNombre("Ventas");
+        request.setVersion(3L);
+        request.setModeloJson("{\"clases\":[{\"id\":\"libro-1\",\"nombre\":\"Libro\"}],\"relaciones\":[]}");
+
+        service.modificarDiagrama(4L, request, actor);
+
+        verify(audit).registrarAccion(eq(actor), eq(diagram.getProyecto()), eq("ELIMINAR_CLASE_UML"),
+                argThat(text -> text.contains("Prestamo") && text.contains("prestamo-1")
+                        && text.contains("v3->v4") && text.contains("relaciones afectadas=1")));
+        verify(audit).registrarAccion(eq(actor), eq(diagram.getProyecto()), eq("ELIMINAR_RELACION_UML"),
+                argThat(text -> text.contains("rel-1") && text.contains("prestamo-1->libro-1")));
     }
 }

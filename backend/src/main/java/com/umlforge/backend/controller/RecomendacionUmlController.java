@@ -69,4 +69,24 @@ public class RecomendacionUmlController {
         return ResponseEntity.ok(service.aplicarCompatibles(
                 proyectoId, mensajeId, authentication.getName()));
     }
+
+    @PostMapping("/alternativas/{alternativaId}/elegir")
+    public ResponseEntity<com.umlforge.backend.dto.MensajeChatResponse> elegirAlternativa(
+            @PathVariable @Positive Long proyectoId,
+            @PathVariable @NotBlank String alternativaId,
+            @Valid @RequestBody com.umlforge.backend.dto.ElegirAlternativaRequest request,
+            Authentication authentication) {
+        return ResponseEntity.ok(service.elegirAlternativa(
+                proyectoId, request.mensajeId(), alternativaId, authentication.getName()));
+    }
+
+    @PostMapping("/alternativas/{alternativaId}/descartar")
+    public ResponseEntity<com.umlforge.backend.dto.MensajeChatResponse> descartarAlternativa(
+            @PathVariable @Positive Long proyectoId,
+            @PathVariable @NotBlank String alternativaId,
+            @Valid @RequestBody com.umlforge.backend.dto.ElegirAlternativaRequest request,
+            Authentication authentication) {
+        return ResponseEntity.ok(service.descartarAlternativa(
+                proyectoId, request.mensajeId(), alternativaId, authentication.getName()));
+    }
 }

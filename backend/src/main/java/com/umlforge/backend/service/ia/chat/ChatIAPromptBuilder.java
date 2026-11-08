@@ -21,18 +21,27 @@ public class ChatIAPromptBuilder {
 
     public String build(Diagrama diagrama, List<MensajeChatProyecto> mensajes,
             List<Bitacora> actividades, MensajeChatProyecto solicitud) {
+        return build(diagrama, mensajes, actividades, solicitud,
+                "Contexto reciente acotado del proyecto; verifica la evidencia antes de afirmar hechos.");
+    }
+
+    public String build(Diagrama diagrama, List<MensajeChatProyecto> mensajes,
+            List<Bitacora> actividades, MensajeChatProyecto solicitud, String politicaEvidencia) {
         boolean revision = isReviewRequest(solicitud);
+        boolean localChanges = hasLocalChanges(solicitud);
         String modelo = normalizarModelo(diagrama.getModeloJson());
         List<MensajeChatProyecto> cronologicos = new ArrayList<>(mensajes);
         Collections.reverse(cronologicos);
         StringBuilder historial = new StringBuilder();
         for (MensajeChatProyecto mensaje : cronologicos) {
-            historial.append('[').append(mensaje.getTipoEmisor()).append("] ")
+            historial.append('[').append(mensaje.getFechaHora()).append(" | ")
+                    .append(mensaje.getTipoEmisor()).append("] ")
                     .append(recortar(mensaje.getContenido(), 2000)).append('\n');
         }
         StringBuilder bitacora = new StringBuilder();
         for (Bitacora actividad : actividades) {
-            bitacora.append("- ").append(recortar(actividad.getAccion(), 120))
+            bitacora.append("- [").append(actividad.getFechaHora()).append("] ")
+                    .append(recortar(actividad.getAccion(), 120))
                     .append(": ").append(recortar(actividad.getDescripcion(), 500)).append('\n');
         }
         return """
@@ -51,9 +60,33 @@ public class ChatIAPromptBuilder {
                 origen tambien es una AGREGAR_CLASE de esta misma respuesta. No presentes hipotesis
                 de negocio como errores formales.
                 Las recomendaciones son propuestas pendientes de autorizacion.
+                No confundas una propuesta de IA con una decision aprobada. Solo afirma que un cambio
+                fue ejecutado cuando exista un mensaje SISTEMA o actividad persistida que lo confirme.
+                El MODELO UML ACTUAL persistido es la unica fuente para afirmar que un elemento existe
+                ahora. El historial solo explica hechos pasados: una clase mencionada historicamente
+                pero ausente del modelo actual fue eliminada o ya no existe. Nunca la reconstruyas desde
+                el historial. No conoces cambios locales sin guardar; si el usuario los menciona, explica
+                que el servidor solo confirma la version persistida indicada abajo.
+                Si los registros recuperados no contienen evidencia suficiente, responde explicitamente
+                que no hay evidencia en el historial disponible. No inventes decisiones ni continuidad.
+
+                POLITICA DE EVIDENCIA HISTORICA
+                %s
+
+                ESTADO DEL EDITOR DEL SOLICITANTE
+                %s
 
                 Devuelve SOLO JSON valido con esta forma:
-                {"respuesta":"resumen","hallazgos":[{"severidad":"ERROR|ADVERTENCIA|SUGERENCIA","categoria":"texto","elementoTipo":"CLASE|ATRIBUTO|METODO|RELACION|DIAGRAMA","elementoId":"ID real o vacio","elementoNombre":"texto","explicacion":"texto","evidencia":"dato observable del modelo","propuesta":"mejora concreta"}],"recomendaciones":[{"tipoCambio":"AGREGAR_CLASE|RENOMBRAR_CLASE|ELIMINAR_CLASE|AGREGAR_ATRIBUTO|MODIFICAR_ATRIBUTO|ELIMINAR_ATRIBUTO|AGREGAR_METODO|MODIFICAR_METODO|ELIMINAR_METODO|AGREGAR_RELACION|MODIFICAR_RELACION|ELIMINAR_RELACION|OTRO","descripcion":"texto","elementoTipo":"CLASE|ATRIBUTO|METODO|RELACION","elementoId":"ID real, o vacio solo para AGREGAR_CLASE","cambioPropuesto":{}}]}
+                {"respuesta":"resumen","hallazgos":[],"recomendaciones":[],"alternativas":[{"id":"opcion-estable","nombre":"titulo","descripcion":"cuando conviene","ventajas":["texto"],"limitaciones":["texto"],"requisitosFaltantes":"texto","recomendada":false,"recomendaciones":[{"tipoCambio":"AGREGAR_CLASE|AGREGAR_RELACION|...","descripcion":"texto","elementoTipo":"CLASE|ATRIBUTO|METODO|RELACION","elementoId":"ID real, o vacio solo para AGREGAR_CLASE","cambioPropuesto":{}}]}]}
+
+                Cuando el usuario pida como modelar una relacion y existan soluciones razonables
+                incompatibles, usa alternativas. Incluye conservar el modelo actual cuando sea valido.
+                Explica ventajas, limitaciones y requisitos faltantes, y marca como recomendada solo la
+                que mejor encaje con evidencia conocida. Cada alternativa contiene exclusivamente sus
+                propias operaciones. Deja recomendaciones de nivel superior vacio: el usuario debe elegir
+                una alternativa antes de que sus operaciones queden disponibles. No propongas eliminar la
+                relacion directa dentro de la alternativa con clase intermedia; ofrecelo como cambio
+                separado y solo si el usuario pide reemplazarla. Ninguna alternativa se aplica sola.
 
                 Para AGREGAR_CLASE, cambioPropuesto puede contener nombre, responsabilidad,
                 justificacion, estereotipo, posicionX, posicionY, atributos, metodos y relaciones.
@@ -101,9 +134,19 @@ public class ChatIAPromptBuilder {
 
                 NUEVA SOLICITUD DEL USUARIO:
                 %s
-                """.formatted(revision ? "REVISION_UML_INTEGRAL" : "CHAT_COLABORATIVO", diagrama.getId(), recortar(diagrama.getNombre(), 200),
+                """.formatted(revision ? "REVISION_UML_INTEGRAL" : "CHAT_COLABORATIVO", recortar(politicaEvidencia, 1500),
+                localChanges ? "Hay cambios locales sin guardar. El modelo mostrado abajo sigue siendo la ultima version confirmada del servidor; explicalo si es relevante." : "No se reportaron cambios locales pendientes.",
+                diagrama.getId(), recortar(diagrama.getNombre(), 200),
                 String.valueOf(diagrama.getVersion()), modelo, historial, bitacora,
                 recortar(solicitud.getContenido(), 8000));
+    }
+
+    private boolean hasLocalChanges(MensajeChatProyecto request) {
+        try {
+            return mapper.readTree(request.getMetadatos()).path("cambiosLocalesSinGuardar").asBoolean(false);
+        } catch (Exception ignored) {
+            return false;
+        }
     }
 
     private boolean isReviewRequest(MensajeChatProyecto request) {

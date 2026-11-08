@@ -1,6 +1,7 @@
 package com.umlforge.backend.service.ia.chat;
 
 import com.umlforge.backend.dto.RecomendacionUml;
+import com.umlforge.backend.dto.AlternativaDisenoUml;
 import com.umlforge.backend.dto.HallazgoRevisionUml;
 import com.umlforge.backend.dto.TipoCambioUml;
 import com.umlforge.backend.dto.TipoElementoUml;
@@ -42,13 +43,56 @@ public class ChatIAResponseParser {
                     if (rec == null) descartadas++; else validas.add(rec);
                 }
             }
+            List<AlternativaDisenoUml> alternativas = parseAlternatives(
+                    root.path("alternativas"), diagrama, elementos);
+            // Alternatives are mutually exclusive. They remain inert until one is
+            // explicitly selected; never expose their operations as a combined batch.
+            if (!alternativas.isEmpty()) validas.clear();
             return new ChatIAParsedResponse(respuesta, List.copyOf(validas), descartadas,
-                    parseFindings(root.path("hallazgos"), elementos));
+                    parseFindings(root.path("hallazgos"), elementos), alternativas);
         } catch (ChatIAProviderException e) {
             throw e;
         } catch (Exception e) {
             throw new ChatIAProviderException("El proveedor no devolvio el contrato JSON requerido", e);
         }
+    }
+
+    private List<AlternativaDisenoUml> parseAlternatives(JsonNode source, Diagrama diagram,
+            ModelIndex index) {
+        if (!source.isArray()) return List.of();
+        List<AlternativaDisenoUml> result = new ArrayList<>();
+        Set<String> ids = new HashSet<>();
+        for (JsonNode option : source) {
+            String name = option.path("nombre").asText("").trim();
+            String description = option.path("descripcion").asText("").trim();
+            if (name.isBlank() || description.isBlank()) continue;
+            JsonNode rawRecommendations = option.path("recomendaciones");
+            Set<String> proposedClasses = proposedClassNames(rawRecommendations);
+            List<RecomendacionUml> recommendations = new ArrayList<>();
+            if (rawRecommendations.isArray()) {
+                for (JsonNode raw : rawRecommendations) {
+                    RecomendacionUml recommendation = validar(raw, diagram, index, proposedClasses);
+                    if (recommendation != null) recommendations.add(recommendation);
+                }
+            }
+            String id = option.path("id").asText("").trim();
+            if (id.isBlank() || !ids.add(id)) id = UUID.randomUUID().toString();
+            result.add(new AlternativaDisenoUml(id, name, description,
+                    textList(option.path("ventajas")), textList(option.path("limitaciones")),
+                    option.path("requisitosFaltantes").asText(""),
+                    option.path("recomendada").asBoolean(false), List.copyOf(recommendations)));
+        }
+        return List.copyOf(result);
+    }
+
+    private List<String> textList(JsonNode source) {
+        if (!source.isArray()) return List.of();
+        List<String> values = new ArrayList<>();
+        for (JsonNode value : source) {
+            String text = value.asText("").trim();
+            if (!text.isBlank()) values.add(text);
+        }
+        return List.copyOf(values);
     }
 
     private RecomendacionUml validar(JsonNode node, Diagrama diagrama,

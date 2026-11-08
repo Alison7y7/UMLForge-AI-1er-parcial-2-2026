@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { stompService } from '../services/stompService';
+import { api } from '../api/axios';
 
 export function useCollaboration(diagramaId: string | undefined) {
   const { token, user } = useAuthStore();
@@ -34,6 +35,19 @@ export function useCollaboration(diagramaId: string | undefined) {
     // React Flow is reconciled only from DIAGRAM_MODEL_UPDATED (AFTER_COMMIT).
   }, []);
 
+  const recoverPersistedSnapshot = useCallback(async () => {
+    if (!diagramaId) return;
+    try {
+      const response = await api.get(`/diagramas/${diagramaId}`);
+      setDiagramModelUpdate({
+        tipoEvento: 'DIAGRAM_MODEL_UPDATED',
+        payload: { ...response.data, changeId: `recovery-${response.data.version}` },
+      });
+    } catch {
+      // La vista mantiene el canvas local; el REST normal mostrará cualquier error de acceso.
+    }
+  }, [diagramaId]);
+
   useEffect(() => {
     if (!diagramaId || !token || !user) {
       setConnectedUsers([]);
@@ -53,6 +67,7 @@ export function useCollaboration(diagramaId: string | undefined) {
       if (status === 'Sincronizado') {
         stompService.publish(`/app/diagramas/${diagramaId}/join`, {});
         stompService.publish(`/app/diagramas/${diagramaId}/presence`, {});
+        void recoverPersistedSnapshot();
       } else {
         setPresenceReceived(false);
       }
@@ -67,11 +82,18 @@ export function useCollaboration(diagramaId: string | undefined) {
       stompService.publish(`/app/diagramas/${diagramaId}/presence`, {});
     }
 
+    const presenceHeartbeat = setInterval(() => {
+      if (stompService.getStatus() === 'Sincronizado') {
+        stompService.publish(`/app/diagramas/${diagramaId}/presence`, {});
+      }
+    }, 30000);
+
     return () => {
+      clearInterval(presenceHeartbeat);
       unsubStatus();
       unsubTopic();
     };
-  }, [diagramaId, token, user, handleRemoteEvent]);
+  }, [diagramaId, token, user, handleRemoteEvent, recoverPersistedSnapshot]);
 
   const broadcastEvent = useCallback((tipoEvento: string, elementoId: string, payload: any = null) => {
     stompService.publish(`/app/diagramas/${diagramaId}/event`, { tipoEvento, elementoId, payload });

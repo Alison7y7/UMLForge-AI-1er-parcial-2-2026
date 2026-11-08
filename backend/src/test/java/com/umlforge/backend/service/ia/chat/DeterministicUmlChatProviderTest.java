@@ -31,6 +31,27 @@ class DeterministicUmlChatProviderTest {
                 .isInstanceOf(ChatIAProviderException.class);
     }
 
+    @Test
+    void ofreceAlternativasDeRelacionSinConsumirProveedorExterno() throws Exception {
+        String prompt = """
+                DIAGRAMA SELECCIONADO
+                modeloJson: {"clases":[{"id":"u1","nombre":"Usuario"},{"id":"l1","nombre":"Libro"}],"relaciones":[]}
+
+                HISTORIAL COMPARTIDO DEL PROYECTO
+
+                NUEVA SOLICITUD DEL USUARIO:
+                ¿Cómo debería relacionar Usuario y Libro?
+                """;
+
+        var result = provider.generate(prompt);
+        var root = new ObjectMapper().readTree(result.structuredJson());
+
+        assertThat(root.path("recomendaciones")).isEmpty();
+        assertThat(root.path("alternativas")).hasSize(3);
+        assertThat(root.path("alternativas").toString())
+                .contains("Conservar estructura actual", "Asociación directa", "Prestamo");
+    }
+
     private String prompt(String request) {
         return "contexto compartido\nNUEVA SOLICITUD DEL USUARIO:\n" + request;
     }

@@ -398,6 +398,15 @@ describe('CU16: Chat Colaborativo Compartido por Proyecto', () => {
       assert.match(source, /hallazgos/);
     });
 
+    it('presenta alternativas incompatibles y exige elegir antes de revisar cambios', () => {
+      const source = readFileSync(new URL('./ProjectChat.tsx', import.meta.url), 'utf8');
+      assert.match(source, /Alternativas de diseño/);
+      assert.match(source, /Elegir esta alternativa/);
+      assert.match(source, /Elegir no modifica el diagrama/);
+      assert.match(source, /elegirAlternativa/);
+      assert.match(source, /alternativaSeleccionadaId/);
+    });
+
     it('CU18 distingue creación y eliminación de clases y recomendaciones obsoletas', () => {
       const source = readFileSync(new URL('./ProjectChat.tsx', import.meta.url), 'utf8');
       assert.match(source, /AGREGAR_CLASE/);

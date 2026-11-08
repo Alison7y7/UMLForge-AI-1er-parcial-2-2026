@@ -42,7 +42,9 @@ interface UseProjectChatResult {
     metadatos?: Record<string, any>,
     onProgress?: (percent: number) => void
   ) => Promise<MensajeChat>;
-  consultarIA: (contenido: string, diagramaId: number | string, tipoSolicitud?: 'CHAT' | 'REVISION_UML') => Promise<MensajeChat>;
+  consultarIA: (contenido: string, diagramaId: number | string, tipoSolicitud?: 'CHAT' | 'REVISION_UML', cambiosLocalesSinGuardar?: boolean) => Promise<MensajeChat>;
+  elegirAlternativa: (mensajeId: number, alternativaId: string) => Promise<MensajeChat>;
+  descartarAlternativa: (mensajeId: number, alternativaId: string) => Promise<MensajeChat>;
   aplicarRecomendacion: (mensajeId: number, recomendacionId: string, confirmarEliminacion?: boolean) => Promise<AplicarRecomendacionResponse>;
   descartarRecomendacion: (mensajeId: number, recomendacionId: string) => Promise<MensajeChat>;
   revalidarRecomendacion?: (mensajeId: number, recomendacionId: string) => Promise<RevalidacionRecomendacionResponse>;
@@ -136,6 +138,24 @@ export function useProjectChat(proyectoId: number | string | undefined): UseProj
   const recargar = useCallback(async () => {
     await cargarHistorial(0, true);
   }, [cargarHistorial]);
+
+  const sincronizarRecientes = useCallback(async () => {
+    if (!numericProyectoId) return;
+    try {
+      const response = await api.get<HistorialChatResponse>(`/proyectos/${numericProyectoId}/chat/mensajes`, {
+        params: { pagina: 0, tamano: 50 },
+      });
+      const recent = [...(response.data.mensajes || [])].reverse();
+      if (!isMountedRef.current) return;
+      setMensajes(previous => {
+        const byId = new Map(previous.map(message => [message.id, message]));
+        recent.forEach(message => byId.set(message.id, message));
+        return [...byId.values()].sort((a, b) => new Date(a.fechaHora).getTime() - new Date(b.fechaHora).getTime());
+      });
+    } catch {
+      // La reconexión STOMP puede continuar; el usuario conserva el historial ya cargado.
+    }
+  }, [numericProyectoId]);
 
   const cargarMas = useCallback(async () => {
     if (loadingMore || loading || !hasMore || !numericProyectoId) return;
@@ -251,7 +271,7 @@ export function useProjectChat(proyectoId: number | string | undefined): UseProj
   );
 
   const consultarIA = useCallback(
-    async (contenido: string, diagramaId: number | string, tipoSolicitud: 'CHAT' | 'REVISION_UML' = 'CHAT'): Promise<MensajeChat> => {
+    async (contenido: string, diagramaId: number | string, tipoSolicitud: 'CHAT' | 'REVISION_UML' = 'CHAT', cambiosLocalesSinGuardar = false): Promise<MensajeChat> => {
       if (!numericProyectoId) {
         throw new Error('No se ha especificado un proyecto válido');
       }
@@ -281,6 +301,7 @@ export function useProjectChat(proyectoId: number | string | undefined): UseProj
             origen: 'chat_ia',
             diagramaId: numericDiagramaId,
             tipoSolicitud,
+            cambiosLocalesSinGuardar,
           },
         };
 
@@ -362,6 +383,30 @@ export function useProjectChat(proyectoId: number | string | undefined): UseProj
     },
     [numericProyectoId]
   );
+
+  const elegirAlternativa = useCallback(async (mensajeId: number, alternativaId: string) => {
+    if (!numericProyectoId) throw new Error('No se ha especificado un proyecto válido');
+    const response = await api.post<MensajeChat>(
+      `/proyectos/${numericProyectoId}/chat/recomendaciones/alternativas/${encodeURIComponent(alternativaId)}/elegir`,
+      { mensajeId }
+    );
+    if (isMountedRef.current) {
+      setMensajes(previous => previous.map(message => message.id === response.data.id ? response.data : message));
+    }
+    return response.data;
+  }, [numericProyectoId]);
+
+  const descartarAlternativa = useCallback(async (mensajeId: number, alternativaId: string) => {
+    if (!numericProyectoId) throw new Error('No se ha especificado un proyecto válido');
+    const response = await api.post<MensajeChat>(
+      `/proyectos/${numericProyectoId}/chat/recomendaciones/alternativas/${encodeURIComponent(alternativaId)}/descartar`,
+      { mensajeId }
+    );
+    if (isMountedRef.current) {
+      setMensajes(previous => previous.map(message => message.id === response.data.id ? response.data : message));
+    }
+    return response.data;
+  }, [numericProyectoId]);
 
   const aplicarRecomendacion = useCallback(
     async (mensajeId: number, recomendacionId: string, confirmarEliminacion = false): Promise<AplicarRecomendacionResponse> => {
@@ -480,7 +525,10 @@ export function useProjectChat(proyectoId: number | string | undefined): UseProj
     const unsubStatus = stompService.addStatusListener((status) => {
       if (isMountedRef.current) {
         setConnectionStatus(status);
-        if (status === 'Sincronizado') void syncIaActivities();
+        if (status === 'Sincronizado') {
+          void syncIaActivities();
+          void sincronizarRecientes();
+        }
         else setIaActivities([]);
       }
     });
@@ -526,7 +574,7 @@ export function useProjectChat(proyectoId: number | string | undefined): UseProj
       clearInterval(watchdog);
       setIaActivities([]);
     };
-  }, [numericProyectoId, cargarHistorial]);
+  }, [numericProyectoId, cargarHistorial, sincronizarRecientes]);
 
   return {
     mensajes,
@@ -542,6 +590,8 @@ export function useProjectChat(proyectoId: number | string | undefined): UseProj
     enviarMensaje,
     enviarMensajeConAdjuntos,
     consultarIA,
+    elegirAlternativa,
+    descartarAlternativa,
     aplicarRecomendacion,
     descartarRecomendacion,
     revalidarRecomendacion,

@@ -62,6 +62,25 @@ class ChatIAProyectoTransactionalServiceTest {
     }
 
     @Test
+    void preguntaHistoricaSinEvidenciaRespondeLocalmenteSinInventarNiLlamarProveedor() {
+        pregunta.setContenido("¿Qué hicimos ayer en este proyecto?");
+        ChatIAProvider provider = provider("gemini", 10, true);
+        MensajeChatResponse response = new MensajeChatResponse(101L, 9L, null, "UMLForge IA",
+                TipoEmisorChat.IA,
+                "No se encontró evidencia histórica suficiente en los registros persistidos de este proyecto para responder esa pregunta.",
+                LocalDateTime.now(), EstadoMensajeChat.COMPLETADO, "corr-1", null);
+        when(chat.persistirMensajeInterno(eq(proyecto), eq(TipoEmisorChat.IA), contains("No se encontró evidencia"),
+                eq(EstadoMensajeChat.COMPLETADO), eq("corr-1"), any(JsonNode.class))).thenReturn(response);
+        when(mensajes.getReferenceById(101L)).thenReturn(new MensajeChatProyecto());
+
+        var result = service(List.of(provider)).procesar(9L, request(), "ada@test");
+
+        assertThat(result.proveedor()).isEqualTo("contexto-persistido");
+        assertThat(result.mensaje().contenido()).contains("No se encontró evidencia histórica suficiente");
+        verify(provider, never()).generate(anyString());
+    }
+
+    @Test
     void usaPipelinePorPrioridadConContextoRealYPersisteIdentidadIa() {
         ChatIAProvider primero = provider("gemini", 10, true);
         when(primero.generate(anyString())).thenThrow(new ChatIAProviderException("temporal"));

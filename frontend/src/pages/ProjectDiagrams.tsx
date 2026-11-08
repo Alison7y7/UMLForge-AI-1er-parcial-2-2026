@@ -1,21 +1,25 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api/axios';
 import { 
   ArrowLeft, ArrowRight, Plus, FileJson, LayoutTemplate, 
   Edit2, Play, Square, CheckCircle2, XCircle, Search, 
-  Users, Mail, Copy, ChevronDown, Clock, X, MessageSquare
+  Users, Mail, Copy, ChevronDown, Clock, X, MessageSquare, History, Sparkles
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import BottomNav from '../components/BottomNav';
 import { formatRole } from '../utils/roleUtils';
 import ProjectChat from '../components/chat/ProjectChat';
+import ProjectHistory from '../components/history/ProjectHistory';
+import type { ProjectContinuity } from '../types/projectHistory';
+import { formatActivityDate } from '../utils/projectActivity';
 
 interface Diagrama {
   id: number;
   nombre: string;
   fechaActualizacion: string;
   activo: boolean;
+  version?: number;
 }
 
 interface ProyectoInfo {
@@ -29,13 +33,22 @@ interface ProyectoInfo {
 export default function ProjectDiagrams() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useAuthStore();
   
   const [diagramas, setDiagramas] = useState<Diagrama[]>([]);
   const [proyecto, setProyecto] = useState<ProyectoInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
-  const [activeTab, setActiveTab] = useState<'diagramas' | 'participantes' | 'chat'>('diagramas');
+  const requestedTab = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState<'diagramas' | 'participantes' | 'chat' | 'historial'>(
+    requestedTab === 'historial' || requestedTab === 'chat' || requestedTab === 'participantes'
+      ? requestedTab : 'diagramas'
+  );
+  const [continuity, setContinuity] = useState<ProjectContinuity | null>(null);
+  const [continuityLoading, setContinuityLoading] = useState(false);
+  const [continuityError, setContinuityError] = useState('');
+  const [chatInitialPrompt, setChatInitialPrompt] = useState<string>();
   const [participantes, setParticipantes] = useState<any[]>([]);
   const [invitaciones, setInvitaciones] = useState<any[]>([]);
   const [correoParticipante, setCorreoParticipante] = useState('');
@@ -91,6 +104,23 @@ export default function ProjectDiagrams() {
     }
   };
 
+  const loadContinuity = async () => {
+    if (!id) return;
+    setContinuityLoading(true);
+    setContinuityError('');
+    try {
+      const continuityRes = await api.get<ProjectContinuity>(`/proyectos/${id}/continuidad`);
+      setContinuity(continuityRes.data);
+    } catch (requestError: any) {
+      setContinuity(null);
+      setContinuityError(requestError.response?.status === 403
+        ? 'No tienes permiso para consultar la continuidad de este proyecto.'
+        : 'No se pudo cargar el resumen para continuar.');
+    } finally {
+      setContinuityLoading(false);
+    }
+  };
+
   const fetchData = async () => {
     setLoading(true);
     setLoadError('');
@@ -100,6 +130,8 @@ export default function ProjectDiagrams() {
 
       const diagRes = await api.get(`/proyectos/${id}/diagramas`);
       setDiagramas(diagRes.data);
+
+      await loadContinuity();
 
       try {
         const partRes = await api.get(`/proyectos/${id}/participantes`);
@@ -361,10 +393,57 @@ export default function ProjectDiagrams() {
             <MessageSquare className="w-4 h-4" />
             <span>Chat del proyecto</span>
           </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('historial')}
+            className={`pb-3 px-2 sm:px-3 font-bold text-xs sm:text-sm transition-colors border-b-2 whitespace-nowrap min-h-[44px] flex items-center gap-1.5 ${
+              activeTab === 'historial' ? 'border-lila-main text-lila-main' : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <History className="w-4 h-4" />
+            <span>Historial y actividad</span>
+          </button>
         </div>
 
         {activeTab === 'diagramas' && (
           <>
+            {continuityLoading && <div className="mb-6 rounded-2xl bg-white/70 p-4 text-sm text-gray-500">Cargando resumen del proyecto…</div>}
+            {!continuityLoading && continuityError && (
+              <div className="mb-6 rounded-2xl border border-red-100 bg-red-50 p-4 text-sm text-red-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <span>{continuityError}</span>
+                <button type="button" onClick={() => void loadContinuity()} className="px-3 py-2 rounded-xl bg-white border border-red-200 font-bold">Reintentar</button>
+              </div>
+            )}
+            {continuity && (continuity.ultimoDiagrama || continuity.ultimaActividad) && (
+              <section className="mb-6 sm:mb-8 rounded-3xl border border-white bg-gradient-to-br from-white/90 to-lila-light/30 p-5 sm:p-6 shadow-xs">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 text-lila-main mb-2"><Clock className="w-5 h-5" /><span className="text-xs font-bold uppercase tracking-wider">Continuar donde lo dejamos</span></div>
+                    {continuity.ultimoDiagrama ? <>
+                      <h2 className="text-lg sm:text-xl font-bold text-text-dark truncate">{continuity.ultimoDiagrama.nombre}</h2>
+                      <p className="text-sm text-gray-500 mt-1">Versión {continuity.ultimoDiagrama.version} · actualizado {formatActivityDate(continuity.ultimoDiagrama.fechaActualizacion)}</p>
+                    </> : <p className="text-sm text-gray-600">El proyecto tiene actividad reciente, pero todavía no un diagrama activo.</p>}
+                    {continuity.ultimaActividad && <p className="text-xs text-gray-600 mt-2"><strong>Última actividad:</strong> {formatActivityDate(continuity.ultimaActividad)}</p>}
+                    <p className="text-xs text-gray-500 mt-2">{continuity.recomendacionesPendientes} recomendaciones pendientes u obsoletas por revisar.</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {continuity.ultimoDiagrama && <button type="button" onClick={() => navigate(`/diagramas/${continuity.ultimoDiagrama!.id}`)} className="px-4 py-2.5 rounded-xl bg-lila-main text-white text-sm font-bold">Abrir último diagrama</button>}
+                    <button type="button" onClick={() => setActiveTab('historial')} className="px-4 py-2.5 rounded-xl bg-white text-lila-main border border-lila-light text-sm font-bold">Ver historial</button>
+                    {continuity.ultimoDiagrama && <button type="button" onClick={() => {
+                      setChatInitialPrompt('Según el historial persistido del proyecto, ¿qué decisiones, cambios o recomendaciones siguen pendientes? Distingue propuestas de acciones ya aplicadas.');
+                      setActiveTab('chat');
+                    }} className="px-4 py-2.5 rounded-xl bg-pink-light/60 text-pink-700 text-sm font-bold flex items-center gap-1.5"><Sparkles className="w-4 h-4" />Preguntar a IA qué quedó pendiente</button>}
+                  </div>
+                </div>
+                {continuity.cambiosRecientes.length > 0 && <div className="mt-4 pt-4 border-t border-white/80 grid gap-2">
+                  <p className="text-xs font-bold uppercase tracking-wider text-gray-500">Cambios confirmados recientes</p>
+                  {continuity.cambiosRecientes.slice(0, 5).map(change => <div key={change.id} className="rounded-xl bg-white/70 p-3 text-xs text-gray-700 flex flex-col sm:flex-row sm:items-start justify-between gap-1 sm:gap-3">
+                    <div className="min-w-0"><strong>{change.participanteNombre || 'Sistema'}</strong> · {change.titulo}<p className="text-gray-500 mt-0.5 break-words">{change.detalle}</p>{change.diagramaNombre && <span className="text-lila-main font-semibold">{change.diagramaNombre}</span>}</div>
+                    <time dateTime={change.fechaHora} className="text-[10px] text-gray-400 whitespace-nowrap">{formatActivityDate(change.fechaHora)}</time>
+                  </div>)}
+                </div>}
+              </section>
+            )}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 sm:mb-8 gap-3 sm:gap-4">
               <h2 className="text-xl sm:text-2xl font-bold text-text-dark tracking-tight">
                 Diagramas UML
@@ -697,8 +776,21 @@ export default function ProjectDiagrams() {
               proyectoId={id}
               proyectoNombre={proyecto?.nombre}
               variant="embedded"
+              diagramaId={continuity?.ultimoDiagrama?.id}
+              diagramaNombre={continuity?.ultimoDiagrama?.nombre}
+              diagramaVersion={continuity?.ultimoDiagrama?.version}
+              initialPrompt={chatInitialPrompt}
             />
           </div>
+        )}
+
+        {activeTab === 'historial' && id && (
+          <ProjectHistory
+            projectId={id}
+            participants={participantes}
+            diagrams={diagramas}
+            onOpenDiagram={(diagramId) => navigate(`/diagramas/${diagramId}`)}
+          />
         )}
       </main>
 

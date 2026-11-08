@@ -42,6 +42,7 @@ public class UmlSyncController {
     public void requestPresence(@DestinationVariable Long diagramaId, SimpMessageHeaderAccessor headerAccessor) {
         if (headerAccessor.getUser() == null) return;
         projectAccessService.requireDiagramAccess(diagramaId, headerAccessor.getUser().getName());
+        collaborationService.touchSession(headerAccessor.getSessionId());
         collaborationService.requestPresence(diagramaId);
     }
 
@@ -49,6 +50,7 @@ public class UmlSyncController {
     public void lockElement(@DestinationVariable Long diagramaId, @Payload UmlEventMessage event, SimpMessageHeaderAccessor headerAccessor) {
         if (headerAccessor.getUser() == null) return;
         projectAccessService.requireDiagramAccess(diagramaId, headerAccessor.getUser().getName());
+        collaborationService.touchSession(headerAccessor.getSessionId());
         Usuario user = usuarioRepository.findByCorreo(headerAccessor.getUser().getName()).orElse(null);
         if (user == null) return;
         
@@ -80,6 +82,7 @@ public class UmlSyncController {
     public void handleEvent(@DestinationVariable Long diagramaId, @Payload UmlEventMessage event, SimpMessageHeaderAccessor headerAccessor) {
         if (headerAccessor.getUser() != null) {
             projectAccessService.requireDiagramAccess(diagramaId, headerAccessor.getUser().getName());
+            collaborationService.touchSession(headerAccessor.getSessionId());
             Usuario user = usuarioRepository.findByCorreo(headerAccessor.getUser().getName()).orElse(null);
             if (user != null) {
                 event.setUsuarioId(user.getId());

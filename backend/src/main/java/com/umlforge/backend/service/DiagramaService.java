@@ -18,6 +18,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 import org.springframework.web.server.ResponseStatusException;
 
@@ -32,6 +34,7 @@ public class DiagramaService {
     private final BitacoraService bitacoraService;
     private final ProjectAccessService projectAccessService;
     private final ApplicationEventPublisher eventPublisher;
+    private final ObjectMapper objectMapper;
 
     private void validarAccesoProyecto(Proyecto proyecto, Usuario actor) {
         projectAccessService.requireProjectAccess(proyecto.getId(), actor);
@@ -86,6 +89,8 @@ public class DiagramaService {
                     "El diagrama cambio en otra sesion. Recarga o resuelve tus cambios locales antes de guardar");
         }
 
+        String previousModel = diagrama.getModeloJson();
+        Long previousVersion = diagrama.getVersion();
         diagrama.setNombre(request.getNombre());
         diagrama.setModeloJson(request.getModeloJson());
 
@@ -93,6 +98,8 @@ public class DiagramaService {
         // authoritative event that will be delivered after this transaction commits.
         Diagrama guardado = diagramaRepository.saveAndFlush(diagrama);
         bitacoraService.registrarAccion(actor, diagrama.getProyecto(), "MODIFICAR_DIAGRAMA", "Modificó el diagrama: " + guardado.getNombre());
+        registrarEliminaciones(actor, guardado, previousModel, request.getModeloJson(),
+                previousVersion, guardado.getVersion());
 
         String changeId = request.getChangeId() == null || request.getChangeId().isBlank()
                 ? "manual:" + UUID.randomUUID()
@@ -102,6 +109,44 @@ public class DiagramaService {
                 changeId, "MANUAL", guardado.getNombre(), guardado.getVersion(), guardado.getModeloJson()));
 
         return mapToResponse(guardado);
+    }
+
+    private void registrarEliminaciones(Usuario actor, Diagrama diagram, String beforeJson,
+            String afterJson, Long beforeVersion, Long afterVersion) {
+        try {
+            JsonNode before = objectMapper.readTree(beforeJson == null || beforeJson.isBlank()
+                    ? "{\"clases\":[],\"relaciones\":[]}" : beforeJson);
+            JsonNode after = objectMapper.readTree(afterJson == null || afterJson.isBlank()
+                    ? "{\"clases\":[],\"relaciones\":[]}" : afterJson);
+            Set<String> currentClasses = new java.util.HashSet<>();
+            after.path("clases").forEach(item -> currentClasses.add(item.path("id").asText()));
+            Set<String> currentRelations = new java.util.HashSet<>();
+            after.path("relaciones").forEach(item -> currentRelations.add(item.path("id").asText()));
+            for (JsonNode umlClass : before.path("clases")) {
+                String classId = umlClass.path("id").asText();
+                if (classId.isBlank() || currentClasses.contains(classId)) continue;
+                long dependent = 0;
+                for (JsonNode relation : before.path("relaciones")) {
+                    if (classId.equals(relation.path("origen").asText())
+                            || classId.equals(relation.path("destino").asText())) dependent++;
+                }
+                bitacoraService.registrarAccion(actor, diagram.getProyecto(), "ELIMINAR_CLASE_UML",
+                        "Diagrama " + diagram.getId() + ": elimino clase "
+                                + umlClass.path("nombre").asText("(sin nombre)") + " [" + classId
+                                + "] v" + beforeVersion + "->v" + afterVersion
+                                + "; relaciones afectadas=" + dependent);
+            }
+            for (JsonNode relation : before.path("relaciones")) {
+                String relationId = relation.path("id").asText();
+                if (relationId.isBlank() || currentRelations.contains(relationId)) continue;
+                bitacoraService.registrarAccion(actor, diagram.getProyecto(), "ELIMINAR_RELACION_UML",
+                        "Diagrama " + diagram.getId() + ": elimino relacion [" + relationId + "] "
+                                + relation.path("origen").asText() + "->" + relation.path("destino").asText()
+                                + " v" + beforeVersion + "->v" + afterVersion);
+            }
+        } catch (Exception ignored) {
+            // Los modelos heredados no deben impedir que un guardado valido se confirme.
+        }
     }
 
     private void requireEditPermission(Usuario user) {

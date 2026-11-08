@@ -55,12 +55,54 @@ class RecomendacionUmlApplicationServiceTest {
         when(access.requireUser(anyString())).thenReturn(actor);
         when(access.requireProjectAccess(2L, actor)).thenReturn(project);
         when(messages.findById(20L)).thenReturn(Optional.of(message));
+        when(messages.findByIdForUpdate(20L)).thenReturn(Optional.of(message));
         when(diagrams.findById(4L)).thenReturn(Optional.of(diagram));
         when(diagrams.findByIdForUpdate(4L)).thenReturn(Optional.of(diagram));
         when(diagrams.saveAndFlush(diagram)).thenAnswer(invocation -> { diagram.setVersion(4L); return diagram; });
         when(applied.existsByMensajeIaIdAndRecomendacionId(20L, "rec-1")).thenReturn(false);
         when(chat.persistirMensajeInterno(any(), eq(TipoEmisorChat.SISTEMA), anyString(),
                 eq(EstadoMensajeChat.COMPLETADO), any(), any())).thenReturn(null);
+    }
+
+    @Test
+    void elegirAlternativaSoloHabilitaSusCambiosSinModificarDiagrama() throws Exception {
+        message.setMetadatos("""
+                {"recomendaciones":[],"requiereSeleccionAlternativa":true,"alternativas":[
+                  {"id":"directa","nombre":"Asociación directa","recomendaciones":[
+                    {"id":"rec-directa","diagramaId":4,"versionDiagrama":3,"tipoCambio":"AGREGAR_RELACION","descripcion":"Relacionar Usuario y Libro","elementoAfectado":{"tipo":"CLASE","id":"c1","nombre":"Cliente"},"cambioPropuesto":{"origen":"c1","destino":"c1","tipo":"ASOCIACION","multiplicidadOrigen":"0..*","multiplicidadDestino":"0..*"}}]},
+                  {"id":"intermedia","nombre":"Clase intermedia","recomendaciones":[]}
+                ]}
+                """);
+        when(chat.toResponse(message)).thenReturn(mock(MensajeChatResponse.class));
+
+        service.elegirAlternativa(2L, 20L, "directa", "elena@test");
+
+        JsonNode metadata = mapper.readTree(message.getMetadatos());
+        assertThat(metadata.path("alternativaSeleccionadaId").asText()).isEqualTo("directa");
+        assertThat(metadata.path("recomendaciones")).hasSize(1);
+        assertThat(metadata.path("recomendaciones").get(0).path("id").asText()).isEqualTo("rec-directa");
+        verify(messages).saveAndFlush(message);
+        verify(diagrams, never()).saveAndFlush(any());
+        verify(events, never()).publishEvent(any());
+    }
+
+    @Test
+    void descartarAlternativaLaInhabilitaSinModificarDiagrama() throws Exception {
+        message.setMetadatos("""
+                {"recomendaciones":[],"alternativas":[
+                  {"id":"directa","nombre":"Asociación directa","recomendaciones":[]},
+                  {"id":"intermedia","nombre":"Clase intermedia","recomendaciones":[]}
+                ]}
+                """);
+        when(chat.toResponse(message)).thenReturn(mock(MensajeChatResponse.class));
+
+        service.descartarAlternativa(2L, 20L, "directa", "elena@test");
+
+        JsonNode metadata = mapper.readTree(message.getMetadatos());
+        assertThat(metadata.path("alternativasDescartadasIds").get(0).asText()).isEqualTo("directa");
+        verify(messages).saveAndFlush(message);
+        verify(diagrams, never()).saveAndFlush(any());
+        verify(events, never()).publishEvent(any());
     }
 
     @Test
@@ -224,6 +266,26 @@ class RecomendacionUmlApplicationServiceTest {
                 .extracting(error -> ((ResponseStatusException) error).getStatusCode().value())
                 .isEqualTo(409);
         verify(diagrams, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void recreaClaseEliminadaConNuevaRecomendacionYNuevoUuid() throws Exception {
+        diagram.setModeloJson("{\"clases\":[],\"relaciones\":[]}");
+        message.setMetadatos("""
+                {"recomendaciones":[{"id":"rec-recrear-prestamo","diagramaId":4,"versionDiagrama":3,
+                "tipoCambio":"AGREGAR_CLASE","descripcion":"Volver a incorporar Prestamo",
+                "elementoAfectado":{"tipo":"CLASE","id":"","nombre":"Prestamo"},
+                "cambioPropuesto":{"nombre":"Prestamo","atributos":[],"metodos":[]}}]}
+                """);
+        when(applied.existsByMensajeIaIdAndRecomendacionId(20L, "rec-recrear-prestamo")).thenReturn(false);
+
+        var response = service.aplicar(2L, "rec-recrear-prestamo",
+                new AplicarRecomendacionRequest(20L), "elena@test");
+
+        JsonNode recreated = mapper.readTree(response.modeloJson()).path("clases").get(0);
+        assertThat(recreated.path("nombre").asText()).isEqualTo("Prestamo");
+        assertThat(recreated.path("id").asText()).isNotBlank().isNotEqualTo("uuid-anterior-prestamo");
+        verify(applied).save(argThat(value -> value.getRecomendacionId().equals("rec-recrear-prestamo")));
     }
 
     @Test

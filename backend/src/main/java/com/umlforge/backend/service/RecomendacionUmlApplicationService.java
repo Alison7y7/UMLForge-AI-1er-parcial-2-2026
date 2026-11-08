@@ -86,8 +86,9 @@ public class RecomendacionUmlApplicationService {
             }
         }
 
+        long affectedRelations = recommendation.tipoCambio() == TipoCambioUml.ELIMINAR_CLASE
+                ? countRelations(model, recommendation.elementoAfectado().id()) : 0;
         if (recommendation.tipoCambio() == TipoCambioUml.ELIMINAR_CLASE && !request.confirmarEliminacion()) {
-            long affectedRelations = countRelations(model, recommendation.elementoAfectado().id());
             throw new ResponseStatusException(UNPROCESSABLE_ENTITY,
                     "La eliminacion requiere confirmacion especial; tambien eliminara "
                             + affectedRelations + " relacion(es) dependiente(s)");
@@ -120,6 +121,17 @@ public class RecomendacionUmlApplicationService {
         bitacoraService.registrarAccion(actor, project, "APLICAR_RECOMENDACION_IA",
                 actorName + " aplico " + recommendation.tipoCambio().name()
                         + " en el diagrama " + diagram.getNombre() + versionTrace);
+        if (recommendation.tipoCambio() == TipoCambioUml.ELIMINAR_CLASE
+                || recommendation.tipoCambio() == TipoCambioUml.ELIMINAR_RELACION) {
+            bitacoraService.registrarAccion(actor, project,
+                    recommendation.tipoCambio() == TipoCambioUml.ELIMINAR_CLASE
+                            ? "ELIMINAR_CLASE_UML" : "ELIMINAR_RELACION_UML",
+                    "Diagrama " + diagram.getId() + ": elimino "
+                            + recommendation.elementoAfectado().tipo().name().toLowerCase(Locale.ROOT)
+                            + " " + recommendation.elementoAfectado().nombre() + " ["
+                            + recommendation.elementoAfectado().id() + "] v" + currentVersion
+                            + "->v" + resultVersion + "; relaciones afectadas=" + affectedRelations);
+        }
 
         ObjectNode metadata = mapper.createObjectNode();
         metadata.put("cu", "CU16");
@@ -345,6 +357,98 @@ public class RecomendacionUmlApplicationService {
         return chatService.persistirMensajeInterno(project, TipoEmisorChat.SISTEMA,
                 actorName + " descarto una recomendacion UML.", EstadoMensajeChat.COMPLETADO,
                 aiMessage.getCorrelacionId(), metadata);
+    }
+
+    @Transactional
+    public MensajeChatResponse elegirAlternativa(Long projectId, Long messageId,
+            String alternativeId, String email) {
+        Usuario actor = accessService.requireUser(email);
+        Proyecto project = accessService.requireProjectAccess(projectId, actor);
+        MensajeChatProyecto aiMessage = messageRepository.findByIdForUpdate(messageId)
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Mensaje de IA no encontrado"));
+        if (!projectId.equals(aiMessage.getProyecto().getId()) || aiMessage.getTipoEmisor() != TipoEmisorChat.IA) {
+            throw new ResponseStatusException(NOT_FOUND, "La alternativa no pertenece al proyecto");
+        }
+        try {
+            JsonNode parsed = mapper.readTree(aiMessage.getMetadatos());
+            if (!(parsed instanceof ObjectNode root)) {
+                throw new ResponseStatusException(UNPROCESSABLE_ENTITY, "Metadatos de IA invalidos");
+            }
+            String selected = root.path("alternativaSeleccionadaId").asText("");
+            if (!selected.isBlank() && !selected.equals(alternativeId)) {
+                throw new ResponseStatusException(CONFLICT,
+                        "Ya se eligio otra alternativa. Solicita una nueva evaluacion para cambiar de diseno");
+            }
+            JsonNode chosen = null;
+            for (JsonNode option : root.path("alternativas")) {
+                if (alternativeId.equals(option.path("id").asText())) {
+                    chosen = option;
+                    break;
+                }
+            }
+            if (chosen == null) throw new ResponseStatusException(NOT_FOUND, "Alternativa no encontrada");
+            root.put("alternativaSeleccionadaId", alternativeId);
+            root.put("alternativaSeleccionadaPorId", actor.getId());
+            root.put("requiereSeleccionAlternativa", false);
+            ArrayNode recommendations = root.putArray("recomendaciones");
+            if (chosen.path("recomendaciones").isArray()) {
+                chosen.path("recomendaciones").forEach(recommendations::add);
+            }
+            root.put("requiereConfirmacion", !recommendations.isEmpty());
+            aiMessage.setMetadatos(mapper.writeValueAsString(root));
+            messageRepository.saveAndFlush(aiMessage);
+            bitacoraService.registrarAccion(actor, project, "ELEGIR_ALTERNATIVA_UML",
+                    fullName(actor) + " eligio la alternativa "
+                            + chosen.path("nombre").asText(alternativeId) + " sin aplicar cambios");
+            return chatService.toResponse(aiMessage);
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(UNPROCESSABLE_ENTITY,
+                    "No se pudo seleccionar la alternativa", e);
+        }
+    }
+
+    @Transactional
+    public MensajeChatResponse descartarAlternativa(Long projectId, Long messageId,
+            String alternativeId, String email) {
+        Usuario actor = accessService.requireUser(email);
+        Proyecto project = accessService.requireProjectAccess(projectId, actor);
+        MensajeChatProyecto aiMessage = messageRepository.findByIdForUpdate(messageId)
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Mensaje de IA no encontrado"));
+        if (!projectId.equals(aiMessage.getProyecto().getId()) || aiMessage.getTipoEmisor() != TipoEmisorChat.IA) {
+            throw new ResponseStatusException(NOT_FOUND, "La alternativa no pertenece al proyecto");
+        }
+        try {
+            JsonNode parsed = mapper.readTree(aiMessage.getMetadatos());
+            if (!(parsed instanceof ObjectNode root)) {
+                throw new ResponseStatusException(UNPROCESSABLE_ENTITY, "Metadatos de IA invalidos");
+            }
+            if (!root.path("alternativaSeleccionadaId").asText("").isBlank()) {
+                throw new ResponseStatusException(CONFLICT, "No se puede descartar después de elegir una alternativa");
+            }
+            boolean found = false;
+            for (JsonNode option : root.path("alternativas")) {
+                if (alternativeId.equals(option.path("id").asText())) { found = true; break; }
+            }
+            if (!found) throw new ResponseStatusException(NOT_FOUND, "Alternativa no encontrada");
+            ArrayNode discarded = root.withArray("alternativasDescartadasIds");
+            for (JsonNode value : discarded) {
+                if (alternativeId.equals(value.asText())) {
+                    throw new ResponseStatusException(CONFLICT, "La alternativa ya fue descartada");
+                }
+            }
+            discarded.add(alternativeId);
+            aiMessage.setMetadatos(mapper.writeValueAsString(root));
+            messageRepository.saveAndFlush(aiMessage);
+            bitacoraService.registrarAccion(actor, project, "DESCARTAR_ALTERNATIVA_UML",
+                    fullName(actor) + " descarto una alternativa UML sin modificar el diagrama");
+            return chatService.toResponse(aiMessage);
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(UNPROCESSABLE_ENTITY, "No se pudo descartar la alternativa", e);
+        }
     }
 
     private RecomendacionUml deserializeRecommendation(JsonNode node) {

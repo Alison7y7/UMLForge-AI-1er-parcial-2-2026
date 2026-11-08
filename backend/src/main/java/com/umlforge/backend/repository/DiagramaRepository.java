@@ -15,6 +15,7 @@ import java.util.List;
 @Repository
 public interface DiagramaRepository extends JpaRepository<Diagrama, Long> {
     List<Diagrama> findByProyectoId(Long proyectoId);
+    Optional<Diagrama> findFirstByProyectoIdAndActivoTrueOrderByFechaActualizacionDesc(Long proyectoId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select d from Diagrama d where d.id = :id")
