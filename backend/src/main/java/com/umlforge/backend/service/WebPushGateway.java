@@ -48,7 +48,13 @@ public class WebPushGateway {
         );
         var response = service.send(notification);
         int statusCode = response.getStatusLine().getStatusCode();
-        log.info("WebPush enviado. Status={} para subId={}", statusCode, subscription.getId());
+        String responseBody = "";
+        try {
+            if (response.getEntity() != null) {
+                responseBody = org.apache.http.util.EntityUtils.toString(response.getEntity());
+            }
+        } catch (Exception ignored) {}
+        log.info("WebPush enviado. Status={} para subId={}, respuesta={}", statusCode, subscription.getId(), responseBody);
         return statusCode;
     }
 }

@@ -28,7 +28,14 @@ export async function enablePush(publicKey: string): Promise<PushSubscription> {
   if (permission !== 'granted') throw new Error('El permiso de notificaciones no fue concedido.');
   const registration = await navigator.serviceWorker.ready;
   const existing = await registration.pushManager.getSubscription();
-  const subscription = existing || await registration.pushManager.subscribe({
+  if (existing) {
+    try {
+      await existing.unsubscribe();
+    } catch (_) {
+      // Ignorar si la suscripción anterior ya no era válida
+    }
+  }
+  const subscription = await registration.pushManager.subscribe({
     userVisibleOnly: true,
     applicationServerKey: urlBase64ToUint8Array(publicKey)
   });

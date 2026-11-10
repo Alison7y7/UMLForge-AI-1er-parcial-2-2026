@@ -160,9 +160,9 @@ public class PushNotificationService {
                 subscriptions.save(subscription);
                 deliveries.save(new PushDelivery(event.eventKey(), recipientId, subscription.getId()));
                 log.info("Push entregado con éxito a usuario {} (subId={})", recipientId, subscription.getId());
-            } else if (status == 404 || status == 410) {
+            } else if (status == 404 || status == 410 || status == 403) {
                 subscription.setActiva(false); subscriptions.save(subscription);
-                log.warn("Suscripción {} desactivada por status {}", subscription.getId(), status);
+                log.warn("Suscripción {} desactivada por status {} (requiere reactivación con la clave actual)", subscription.getId(), status);
             } else {
                 registerFailure(subscription);
                 log.warn("Servicio push devolvió status {} para subId {}", status, subscription.getId());
