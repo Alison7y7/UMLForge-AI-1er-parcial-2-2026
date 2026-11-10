@@ -7,6 +7,14 @@ export interface PushSettings {
   invitaciones: boolean; menciones: boolean; recomendaciones: boolean; cambiosUml: boolean;
 }
 
+export interface PushTestResponse {
+  success: boolean;
+  activeSubscriptions: number;
+  deliveredCount: number;
+  failedCount: number;
+  message: string;
+}
+
 export function pushCompatibility(): PushCompatibility {
   if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return 'unsupported';
   if (!window.isSecureContext) return 'insecure';
@@ -54,4 +62,25 @@ export async function disablePush(): Promise<void> {
   if (!subscription) return;
   await api.delete('/notificaciones/push/suscripciones', { data: { endpoint: subscription.endpoint } });
   await subscription.unsubscribe();
+}
+
+export async function sendPushTest(): Promise<PushTestResponse> {
+  const res = await api.post<PushTestResponse>('/notificaciones/push/prueba');
+  return res.data;
+}
+
+export async function syncPushSubscription(_publicKey?: string): Promise<PushSubscription | null> {
+  if (pushCompatibility() !== 'supported') return null;
+  const registration = await navigator.serviceWorker.ready;
+  const subscription = await registration.pushManager.getSubscription();
+  if (!subscription) return null;
+  const json = subscription.toJSON();
+  if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) return null;
+  await api.post('/notificaciones/push/suscripciones', {
+    endpoint: json.endpoint,
+    p256dh: json.keys.p256dh,
+    auth: json.keys.auth,
+    dispositivo: navigator.userAgent.slice(0, 120)
+  });
+  return subscription;
 }

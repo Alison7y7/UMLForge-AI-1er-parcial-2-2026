@@ -15,12 +15,14 @@ describe('CU23 Web Push', () => {
   it('el service worker recibe push y abre únicamente rutas locales seguras', () => {
     const sw=readFileSync(new URL('../../public/sw.js',import.meta.url),'utf8');
     assert.match(sw,/addEventListener\('push'/); assert.match(sw,/showNotification/);
+    assert.match(sw,/renotify:\s*true/); assert.match(sw,/vibrate:\s*\[200,\s*100,\s*200\]/);
     assert.match(sw,/addEventListener\('notificationclick'/); assert.match(sw,/!data\.url\.startsWith\('\/\/'\)/);
   });
-  it('la interfaz contempla incompatibilidad, permiso denegado, HTTPS y responsive', () => {
+  it('la interfaz contempla incompatibilidad, permiso denegado, HTTPS, sincronización y envío de prueba', () => {
     const source=readFileSync(new URL('../pages/NotificationSettings.tsx',import.meta.url),'utf8');
     assert.match(source,/unsupported/); assert.match(source,/denied/); assert.match(source,/ios-install-required/); assert.match(source,/requiere HTTPS/);
     assert.match(source,/sm:grid-cols-2/); assert.match(source,/Desactivar dispositivo/);
+    assert.match(source,/syncPushSubscription/); assert.match(source,/sendPushTest/);
   });
 });
 

@@ -1,5 +1,5 @@
 /* UMLForge AI - Service Worker (Fase 1: Base PWA e Instalabilidad) */
-const CACHE_NAME = 'umlforge-static-v1.0.4';
+const CACHE_NAME = 'umlforge-static-v1.0.5';
 
 // Recursos estáticos mínimos requeridos para arrancar el App Shell
 const STATIC_PRECACHE = [
@@ -128,32 +128,62 @@ self.addEventListener('fetch', (event) => {
 // CU23: el payload procede exclusivamente del backend autenticado y firmado con VAPID.
 self.addEventListener('push', (event) => {
   let data = {};
-  try { data = event.data ? event.data.json() : {}; } catch (_) { data = {}; }
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch (_) {
+    try {
+      const text = event.data ? event.data.text() : '';
+      data = text ? { body: text } : {};
+    } catch (_) {
+      data = {};
+    }
+  }
+
   const title = String(data.title || 'UMLForge AI').slice(0, 80);
-  const body = String(data.body || 'Tienes una nueva actividad.').slice(0, 180);
+  const body = String(data.body || 'Tienes una nueva actividad en el proyecto.').slice(0, 180);
   const url = typeof data.url === 'string' && data.url.startsWith('/') && !data.url.startsWith('//')
     ? data.url : '/dashboard';
-  event.waitUntil(self.registration.showNotification(title, {
+  const tag = String(data.tag || ('umlforge-' + Date.now())).slice(0, 100);
+
+  // Mecanismo de confirmación (ack) no bloqueante hacia el backend
+  const ackPromise = (data.ackId && typeof data.ackId === 'string')
+    ? fetch('/api/notificaciones/push/ack?ackId=' + encodeURIComponent(data.ackId), {
+        method: 'POST'
+      }).catch(() => {})
+    : Promise.resolve();
+
+  const showPromise = self.registration.showNotification(title, {
     body,
     icon: '/icons/icon-192.png',
     badge: '/icons/icon-192.png',
-    tag: String(data.tag || 'umlforge').slice(0, 100),
-    renotify: false,
-    data: { url }
-  }));
+    tag,
+    renotify: true,
+    vibrate: [200, 100, 200],
+    data: { url, tag, timestamp: Date.now() }
+  });
+
+  event.waitUntil(Promise.all([showPromise, ackPromise]));
 });
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const relativeUrl = event.notification.data?.url || '/dashboard';
   const target = new URL(relativeUrl, self.location.origin).href;
-  event.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
-    for (const client of clients) {
-      if ('focus' in client) {
-        client.navigate(target);
-        return client.focus();
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (clients) => {
+      for (const client of clients) {
+        if (client.url === target && 'focus' in client) {
+          return client.focus();
+        }
       }
-    }
-    return self.clients.openWindow ? self.clients.openWindow(target) : undefined;
-  }));
+      for (const client of clients) {
+        if ('focus' in client && 'navigate' in client) {
+          await client.navigate(target);
+          return client.focus();
+        }
+      }
+      return self.clients.openWindow ? self.clients.openWindow(target) : undefined;
+    })
+  );
 });

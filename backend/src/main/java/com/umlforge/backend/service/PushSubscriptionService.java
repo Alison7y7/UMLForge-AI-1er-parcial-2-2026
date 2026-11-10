@@ -4,8 +4,8 @@ import com.umlforge.backend.dto.*;
 import com.umlforge.backend.entity.*;
 import com.umlforge.backend.repository.*;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -13,6 +13,7 @@ import org.springframework.web.server.ResponseStatusException;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import java.net.URI;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PushSubscriptionService {
@@ -35,8 +36,9 @@ public class PushSubscriptionService {
         Usuario user = access.requireUser(email);
         validate(request);
         PushSubscription subscription = subscriptions.findByEndpoint(request.endpoint()).orElseGet(PushSubscription::new);
-        if (subscription.getId() != null && !subscription.getUsuario().getId().equals(user.getId())) {
-            throw new AccessDeniedException("La suscripción pertenece a otro usuario");
+        if (subscription.getId() != null && subscription.getUsuario() != null && !subscription.getUsuario().getId().equals(user.getId())) {
+            log.info("Reasignando suscripción de endpoint existente (dispositivo compartido o re-autenticado) de usuario {} a usuario {}",
+                    subscription.getUsuario().getId(), user.getId());
         }
         subscription.setUsuario(user);
         subscription.setEndpoint(request.endpoint());

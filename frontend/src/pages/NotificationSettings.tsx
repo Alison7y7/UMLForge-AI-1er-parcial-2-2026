@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Bell, BellOff, CheckCircle2, ShieldCheck, Smartphone, RefreshCw } from 'lucide-react';
 import Layout from '../components/Layout';
 import { api } from '../api/axios';
-import { disablePush, enablePush, getPushSettings, pushCompatibility, type PushSettings } from '../services/pushNotifications';
+import { disablePush, enablePush, getPushSettings, pushCompatibility, sendPushTest, syncPushSubscription, type PushSettings } from '../services/pushNotifications';
 
 const compatibilityText = {
   supported: 'El navegador admite Web Push en este contexto seguro.',
@@ -24,14 +24,37 @@ export default function NotificationSettings() {
   const load = async () => {
     setLoading(true); setError('');
     try {
-      setSettings(await getPushSettings());
+      const serverSettings = await getPushSettings();
+      setSettings(serverSettings);
       if (pushCompatibility() === 'supported') {
         const registration = await navigator.serviceWorker.ready;
-        setCurrentSubscribed(Boolean(await registration.pushManager.getSubscription()));
-      } else setCurrentSubscribed(false);
+        const currentSub = await registration.pushManager.getSubscription();
+        if (currentSub) {
+          // Si el navegador tiene suscripción activa pero el backend no la tiene para esta cuenta
+          // (ej: cambio de sesión en el mismo Android), sincronizamos de inmediato.
+          if (!serverSettings.subscribed && serverSettings.configured) {
+            try {
+              await syncPushSubscription(serverSettings.publicKey);
+              const refreshed = await getPushSettings();
+              setSettings(refreshed);
+              setCurrentSubscribed(true);
+              return;
+            } catch (syncErr) {
+              console.warn('Auto-sync suscripción push:', syncErr);
+            }
+          }
+          setCurrentSubscribed(true);
+        } else {
+          setCurrentSubscribed(false);
+        }
+      } else {
+        setCurrentSubscribed(false);
+      }
+    } catch {
+      setError('No se pudo cargar la configuración de notificaciones.');
+    } finally {
+      setLoading(false);
     }
-    catch { setError('No se pudo cargar la configuración de notificaciones.'); }
-    finally { setLoading(false); }
   };
   useEffect(() => { void load(); }, []);
 
@@ -56,9 +79,19 @@ export default function NotificationSettings() {
   };
   const sendTest = async () => {
     setWorking(true); setError(''); setMessage('');
-    try { await api.post('/notificaciones/push/prueba'); setMessage('Prueba enviada a tus dispositivos activos.'); }
-    catch { setError('No se pudo enviar la prueba. Verifica VAPID y la suscripción.'); }
-    finally { setWorking(false); }
+    try {
+      const res = await sendPushTest();
+      if (res.success) {
+        setMessage(res.message);
+      } else {
+        setError(res.message);
+      }
+    } catch (e: any) {
+      const msg = e.response?.data?.message || 'No se pudo enviar la prueba. Verifica VAPID y la suscripción activa.';
+      setError(msg);
+    } finally {
+      setWorking(false);
+    }
   };
 
   return <Layout><main className="relative z-10 w-full max-w-4xl mx-auto p-4 sm:p-8 pb-28">

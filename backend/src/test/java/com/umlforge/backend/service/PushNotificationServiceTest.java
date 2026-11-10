@@ -1,5 +1,6 @@
 package com.umlforge.backend.service;
 
+import com.umlforge.backend.dto.MensajeChatResponse;
 import com.umlforge.backend.entity.*;
 import com.umlforge.backend.repository.*;
 import org.junit.jupiter.api.Test;
@@ -28,8 +29,47 @@ class PushNotificationServiceTest {
     @Test void invalidaSuscripcionExpiradaSinBloquear() throws Exception {
         Fixture f=new Fixture();Usuario user=user(2L);PushSubscription sub=subscription(user,20L);
         when(f.subscriptions.findByUsuarioIdAndActivaTrue(2L)).thenReturn(List.of(sub));when(f.gateway.send(any(),anyString())).thenReturn(410);
-        f.service.deliver(new PushNotificationEvent("invite:1",PushCategory.INVITACION,null,null,Set.of(2L),"Invitación","Proyecto","/proyectos"));
+        f.service.deliver(new PushNotificationEvent("invite:1",PushCategory.INVITACION,null,null,Set.of(2L),"Invitación","Proyecto","/dashboard"));
         assertThat(sub.isActiva()).isFalse();verify(f.subscriptions).save(sub);
+    }
+
+    @Test void sendTestNotificationInformaDiagnosticoReal() throws Exception {
+        Fixture f = new Fixture(); Usuario user = user(5L);
+        when(f.access.requireUser("test@user")).thenReturn(user);
+        PushSubscription sub = subscription(user, 50L);
+        when(f.subscriptions.findByUsuarioIdAndActivaTrue(5L)).thenReturn(List.of(sub));
+        when(f.gateway.send(eq(sub), anyString())).thenReturn(201);
+
+        var result = f.service.sendTestNotification("test@user");
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.deliveredCount()).isEqualTo(1);
+        assertThat(result.activeSubscriptions()).isEqualTo(1);
+        assertThat(result.failedCount()).isEqualTo(0);
+        verify(f.gateway).send(eq(sub), contains("/dashboard"));
+    }
+
+    @Test void sendTestNotificationFallaClaroSiNoHaySuscripciones() {
+        Fixture f = new Fixture(); Usuario user = user(5L);
+        when(f.access.requireUser("test@user")).thenReturn(user);
+        when(f.subscriptions.findByUsuarioIdAndActivaTrue(5L)).thenReturn(List.of());
+
+        var result = f.service.sendTestNotification("test@user");
+
+        assertThat(result.success()).isFalse();
+        assertThat(result.activeSubscriptions()).isEqualTo(0);
+        assertThat(result.message()).contains("No tienes ningún dispositivo");
+    }
+
+    @Test void onChatMessageSinMencionesNoEnviaPushIndiscriminado() throws Exception {
+        Fixture f = new Fixture();
+        var mensaje = new MensajeChatResponse(100L, 9L, 1L, "Juan", TipoEmisorChat.USUARIO,
+                "Hola a todos sin arroba", null, null, null, null, null, null);
+        when(f.participants.findByProyectoId(9L)).thenReturn(List.of(participant(user(2L), true)));
+
+        f.service.onChatMessage(new MensajeChatPublicadoEvent(9L, mensaje));
+
+        verify(f.gateway, never()).send(any(), anyString());
     }
     static class Fixture {
         final PushSubscriptionRepository subscriptions=mock(PushSubscriptionRepository.class);final PushPreferenceRepository preferences=mock(PushPreferenceRepository.class);

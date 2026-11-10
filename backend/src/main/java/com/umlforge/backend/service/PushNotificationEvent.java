@@ -8,7 +8,7 @@ public record PushNotificationEvent(String eventKey, PushCategory category, Long
             Long recipientId, String projectName) {
         return new PushNotificationEvent(key, PushCategory.INVITACION, projectId, actorId,
                 Set.of(recipientId), "Invitación a un proyecto",
-                "Te invitaron a colaborar en " + safe(projectName), "/proyectos");
+                "Te invitaron a colaborar en " + safe(projectName), "/dashboard");
     }
     private static String safe(String value) {
         if (value == null || value.isBlank()) return "un proyecto de UMLForge AI";

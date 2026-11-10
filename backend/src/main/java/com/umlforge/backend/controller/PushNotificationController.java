@@ -33,7 +33,14 @@ public class PushNotificationController {
         return subscriptions.updatePreferences(request, auth.getName());
     }
     @PostMapping("/prueba")
-    public ResponseEntity<Void> test(Authentication auth) {
-        notifications.sendToAuthenticatedUser(auth.getName()); return ResponseEntity.accepted().build();
+    public ResponseEntity<PushTestResponse> test(Authentication auth) {
+        PushTestResponse response = notifications.sendTestNotification(auth.getName());
+        return response.success() ? ResponseEntity.ok(response) : ResponseEntity.badRequest().body(response);
+    }
+
+    @PostMapping("/ack")
+    public ResponseEntity<Void> ack(@RequestParam(required = false) String ackId) {
+        notifications.confirmReceipt(ackId);
+        return ResponseEntity.ok().build();
     }
 }

@@ -1,5 +1,6 @@
 package com.umlforge.backend.service;
 
+import com.umlforge.backend.dto.PushTestResponse;
 import com.umlforge.backend.entity.*;
 import com.umlforge.backend.repository.*;
 import lombok.RequiredArgsConstructor;
@@ -87,13 +88,6 @@ public class PushNotificationService {
                         PushCategory.MENCION, event.proyectoId(), message.emisorId(), mentioned,
                         "Te mencionaron en el chat", clean(message.emisorNombre(), 60) + ": " + clean(message.contenido(), 120),
                         "/proyectos/" + event.proyectoId()));
-            } else {
-                String projectName = project != null ? project.getNombre() : "Proyecto";
-                deliver(new PushNotificationEvent("chat:" + message.id(),
-                        PushCategory.MENCION, event.proyectoId(), message.emisorId(), Set.of(),
-                        "Mensaje en " + clean(projectName, 40),
-                        clean(message.emisorNombre(), 40) + ": " + clean(message.contenido(), 120),
-                        "/proyectos/" + event.proyectoId()));
             }
         } else if (message.tipoEmisor() == TipoEmisorChat.SISTEMA
                 && message.contenido() != null && !message.contenido().toLowerCase(Locale.ROOT).contains("recomendaci")) {
@@ -105,10 +99,74 @@ public class PushNotificationService {
 
     @Transactional
     public void sendToAuthenticatedUser(String email) {
+        sendTestNotification(email);
+    }
+
+    @Transactional
+    public PushTestResponse sendTestNotification(String email) {
+        if (!configured()) {
+            return new PushTestResponse(false, 0, 0, 0, "Servicio Web Push no configurado (claves VAPID ausentes en el servidor)");
+        }
         Usuario user = access.requireUser(email);
-        deliver(new PushNotificationEvent("test:" + UUID.randomUUID(), PushCategory.INVITACION,
-                null, null, Set.of(user.getId()), "UMLForge AI",
-                "Las notificaciones están configuradas correctamente.", "/configuracion/notificaciones"));
+        List<PushSubscription> activeSubs = subscriptions.findByUsuarioIdAndActivaTrue(user.getId());
+        if (activeSubs.isEmpty()) {
+            return new PushTestResponse(false, 0, 0, 0, "No tienes ningún dispositivo o navegador suscrito activamente con esta cuenta. Pulsa 'Activar notificaciones' en este dispositivo primero.");
+        }
+
+        int delivered = 0;
+        int failed = 0;
+        String eventKey = "test:" + UUID.randomUUID();
+        PushNotificationEvent event = new PushNotificationEvent(
+                eventKey, PushCategory.INVITACION,
+                null, null, Set.of(user.getId()),
+                "UMLForge AI",
+                "Las notificaciones están configuradas correctamente en tu dispositivo.",
+                "/dashboard");
+
+        for (PushSubscription sub : activeSubs) {
+            try {
+                String payload = mapper.writeValueAsString(Map.of(
+                        "title", clean(event.title(), 80),
+                        "body", clean(event.body(), 180),
+                        "url", safeUrl(event.url()),
+                        "tag", clean(event.eventKey(), 100),
+                        "ackId", eventKey));
+                int status = gateway.send(sub, payload);
+                if (status >= 200 && status < 300) {
+                    sub.setUltimoExito(Instant.now());
+                    sub.setFallosConsecutivos(0);
+                    subscriptions.save(sub);
+                    deliveries.save(new PushDelivery(event.eventKey(), user.getId(), sub.getId()));
+                    delivered++;
+                } else if (status == 404 || status == 410 || status == 403) {
+                    sub.setActiva(false);
+                    subscriptions.save(sub);
+                    failed++;
+                } else {
+                    registerFailure(sub);
+                    failed++;
+                }
+            } catch (Exception e) {
+                registerFailure(sub);
+                failed++;
+                log.warn("Error enviando push de prueba a subId {}: {}", sub.getId(), e.getMessage());
+            }
+        }
+
+        if (delivered > 0) {
+            return new PushTestResponse(true, activeSubs.size(), delivered, failed,
+                    "Notificación de prueba enviada al proveedor Push (Google FCM). Revisa la bandeja de Android.");
+        } else {
+            return new PushTestResponse(false, activeSubs.size(), 0, failed,
+                    "El proveedor Push rechazó la entrega (" + failed + " fallos). Tu suscripción puede haber caducado; desactiva y vuelve a activar el dispositivo.");
+        }
+    }
+
+    @Transactional
+    public void confirmReceipt(String ackId) {
+        if (ackId != null && !ackId.isBlank()) {
+            log.info("Confirmación de recepción Web Push recibida del cliente para evento: {}", ackId);
+        }
     }
 
     void deliver(PushNotificationEvent event) {

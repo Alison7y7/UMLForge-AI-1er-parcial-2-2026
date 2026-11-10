@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import nl.martijndwars.webpush.Encoding;
 import nl.martijndwars.webpush.Notification;
 import nl.martijndwars.webpush.PushService;
+import nl.martijndwars.webpush.Urgency;
 import nl.martijndwars.webpush.Utils;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.springframework.beans.factory.annotation.Value;
@@ -41,12 +42,14 @@ public class WebPushGateway {
         service.setPrivateKey(Utils.loadPrivateKey(privateKey));
         service.setSubject(subject);
 
-        Notification notification = new Notification(
-                subscription.getEndpoint(),
-                subscription.getP256dh(),
-                subscription.getAuth(),
-                payload
-        );
+        Notification notification = new Notification.NotificationBuilder()
+                .endpoint(subscription.getEndpoint())
+                .userPublicKey(subscription.getP256dh())
+                .userAuth(subscription.getAuth())
+                .payload(payload)
+                .ttl(86400)
+                .urgency(Urgency.HIGH)
+                .build();
         var response = service.send(notification, Encoding.AES128GCM);
         int statusCode = response.getStatusLine().getStatusCode();
         String responseBody = "";
@@ -55,7 +58,7 @@ public class WebPushGateway {
                 responseBody = org.apache.http.util.EntityUtils.toString(response.getEntity());
             }
         } catch (Exception ignored) {}
-        log.info("WebPush enviado con AES128GCM. Status={} para subId={}, respuesta={}", statusCode, subscription.getId(), responseBody);
+        log.info("WebPush enviado con AES128GCM y Urgency.HIGH. Status={} para subId={}, respuesta={}", statusCode, subscription.getId(), responseBody);
         return statusCode;
     }
 }

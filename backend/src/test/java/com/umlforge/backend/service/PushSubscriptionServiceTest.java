@@ -24,16 +24,22 @@ class PushSubscriptionServiceTest {
         verify(subscriptions).save(argThat(s -> s.getUsuario().getId().equals(3L) && s.isActiva()));
     }
 
-    @Test void rechazaApropiarseDeSuscripcionAjena() {
+    @Test void reasignaDispositivoCompartidoAUsuarioActual() {
         var subscriptions = mock(PushSubscriptionRepository.class); var prefs = mock(PushPreferenceRepository.class);
-        var access = mock(ProjectAccessService.class); Usuario owner = user(1L), attacker = user(2L);
-        PushSubscription existing = new PushSubscription(); existing.setUsuario(owner); existing.setEndpoint("https://push.example/sub");
+        var access = mock(ProjectAccessService.class); Usuario previousOwner = user(1L), currentUser = user(2L);
+        PushSubscription existing = new PushSubscription(); existing.setUsuario(previousOwner); existing.setEndpoint("https://push.example/sub");
         ReflectionTestUtils.setField(existing,"id",8L);
-        when(access.requireUser("attacker@test")).thenReturn(attacker); when(subscriptions.findByEndpoint(anyString())).thenReturn(Optional.of(existing));
-        assertThatThrownBy(() -> service(subscriptions,prefs,access).subscribe(
-                new PushSubscriptionRequest(existing.getEndpoint(),"key","auth","x"),"attacker@test"))
-                .isInstanceOf(AccessDeniedException.class);
-        verify(subscriptions,never()).save(any());
+        when(access.requireUser("user2@test")).thenReturn(currentUser);
+        when(subscriptions.findByEndpoint(anyString())).thenReturn(Optional.of(existing));
+        when(prefs.findByUsuarioId(2L)).thenReturn(Optional.empty());
+        when(prefs.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(subscriptions.existsByUsuarioIdAndActivaTrue(2L)).thenReturn(true);
+
+        var result = service(subscriptions,prefs,access).subscribe(
+                new PushSubscriptionRequest(existing.getEndpoint(),"key","auth","Chrome Android"),"user2@test");
+
+        assertThat(result.subscribed()).isTrue();
+        verify(subscriptions).save(argThat(s -> s.getUsuario().getId().equals(2L) && s.isActiva()));
     }
 
     @Test void eliminaSoloLaSuscripcionPropia() {
