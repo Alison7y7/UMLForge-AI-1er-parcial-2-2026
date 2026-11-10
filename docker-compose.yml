@@ -80,6 +80,10 @@ services:
       JAVA_TOOL_OPTIONS: ${JAVA_TOOL_OPTIONS:--XX:MaxRAMPercentage=75.0}
       CHAT_ATTACHMENTS_STORAGE_PATH: /data/chat-attachments
       CHAT_ATTACHMENTS_MAX_FILE_BYTES: ${CHAT_ATTACHMENTS_MAX_FILE_BYTES:-10485760}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@localhost}
+      PUSH_ENABLED: ${PUSH_ENABLED:-true}
     volumes:
       - chat_attachments:/data/chat-attachments
     depends_on:

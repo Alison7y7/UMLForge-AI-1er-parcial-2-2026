@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../api/axios';
 import { 
   Folder, Plus, Edit2, Play, Square, ExternalLink, 
-  X, CheckCircle2, XCircle, ArrowRight
+  X, CheckCircle2, XCircle, ArrowRight, User as UserIcon
 } from 'lucide-react';
 import Layout from '../components/Layout';
 
@@ -244,6 +244,21 @@ export default function Dashboard() {
                 <p className="text-xs sm:text-sm text-gray-500 line-clamp-2 min-h-[2.5rem] font-medium leading-relaxed">
                   {p.descripcion || 'Sin descripción'}
                 </p>
+
+                {/* CU21 - Metadatos de Participante y Rol para consulta móvil */}
+                <div className="flex flex-wrap items-center gap-2 mt-3 pt-2.5 border-t border-gray-100 text-xs">
+                  <span className="inline-flex items-center gap-1 bg-gray-50 text-gray-600 px-2 py-1 rounded-lg font-medium text-[11px] truncate max-w-[160px]">
+                    <UserIcon className="w-3 h-3 text-gray-400 shrink-0" />
+                    <span className="truncate">{p.anfitrionNombre || 'Anfitrión'}</span>
+                  </span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                    p.anfitrionNombre?.includes(user?.nombre || '')
+                      ? 'bg-pink-50 text-pink-700 border border-pink-100'
+                      : 'bg-lila-light/40 text-lila-main'
+                  }`}>
+                    {p.anfitrionNombre?.includes(user?.nombre || '') ? 'Anfitrión' : 'Participante'}
+                  </span>
+                </div>
               </div>
               
               <div className="px-5 sm:px-6 py-3.5 border-t border-gray-100/70 bg-gray-50/40 flex items-center justify-between">

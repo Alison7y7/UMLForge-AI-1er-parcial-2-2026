@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
-import { LogOut, Folder, LayoutDashboard, Users, Shield, Clock, Menu, X } from 'lucide-react';
+import { LogOut, Folder, LayoutDashboard, Users, Shield, Clock, Menu, X, Bell } from 'lucide-react';
 import Logo from './Logo';
 import PwaInstallButton from './pwa/PwaInstallButton';
 import BottomNav from './BottomNav';
@@ -127,6 +127,17 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           >
             <Folder className={`w-5 h-5 mr-3 shrink-0 ${isActive('/proyectos') ? '' : 'text-gray-400 group-hover:text-pink-main transition-colors'}`} /> 
             <span>Proyectos</span>
+          </Link>
+
+          <Link
+            to="/configuracion/notificaciones"
+            onClick={closeSidebar}
+            className={`flex items-center px-4 py-3 rounded-2xl font-semibold transition-all ${
+              isActive('/configuracion/notificaciones') ? 'bg-lila-light/50 text-lila-main shadow-xs' : 'text-gray-500 hover:bg-gray-50 hover:text-text-dark group'
+            }`}
+          >
+            <Bell className={`w-5 h-5 mr-3 shrink-0 ${isActive('/configuracion/notificaciones') ? '' : 'text-gray-400 group-hover:text-pink-main transition-colors'}`} />
+            <span>Notificaciones</span>
           </Link>
 
           {(user?.permisos?.includes('GESTIONAR_USUARIOS') || user?.permisos?.includes('GESTIONAR_ROLES') || user?.permisos?.includes('CONSULTAR_BITACORA')) && (

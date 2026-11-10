@@ -14,6 +14,7 @@ import com.umlforge.backend.repository.UsuarioRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -28,6 +29,7 @@ public class InvitacionProyectoService {
     private final ProyectoRepository proyectoRepository;
     private final UsuarioRepository usuarioRepository;
     private final BitacoraService bitacoraService;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * Crea una nueva invitación para un usuario a un proyecto.
@@ -74,6 +76,9 @@ public class InvitacionProyectoService {
         // Registro en bitácora
         bitacoraService.registrarAccion(anfitrion, proyecto, "INVITAR_PARTICIPANTE",
                 "Invitó a " + invitado.getCorreo());
+        eventPublisher.publishEvent(PushNotificationEvent.invitation(
+                "invitation:" + guardada.getId(), proyecto.getId(), anfitrion.getId(),
+                invitado.getId(), proyecto.getNombre()));
         // Mapear a DTO
         InvitacionResponse resp = new InvitacionResponse();
         resp.setId(guardada.getId());

@@ -4,7 +4,7 @@ import { api } from '../api/axios';
 import { 
   ArrowLeft, ArrowRight, Plus, FileJson, LayoutTemplate, 
   Edit2, Play, Square, CheckCircle2, XCircle, Search, 
-  Users, Mail, Copy, ChevronDown, Clock, X, MessageSquare, History, Sparkles
+  Users, Mail, Copy, ChevronDown, Clock, X, MessageSquare, History, Sparkles, Folder, Eye
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import BottomNav from '../components/BottomNav';
@@ -26,6 +26,7 @@ interface ProyectoInfo {
   id: number;
   nombre: string;
   descripcion: string;
+  activo?: boolean;
   anfitrionId: number;
   anfitrionNombre?: string;
 }
@@ -358,30 +359,117 @@ export default function ProjectDiagrams() {
 
       {/* Main Content */}
       <main 
-        className="flex-1 relative z-10 max-w-7xl mx-auto w-full px-3.5 sm:px-6 py-6 sm:py-10"
+        className="flex-1 relative z-10 max-w-7xl mx-auto w-full px-3.5 sm:px-6 py-4 sm:py-8"
         style={{
           paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))',
         }}
       >
+        {/* CU21 — Panel de Progreso e Indicadores del Proyecto */}
+        <section className="mb-6 rounded-3xl border border-white bg-white/85 backdrop-blur-md p-4 sm:p-6 shadow-xs">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b border-gray-100">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-lila-light/50 flex items-center justify-center text-lila-main shrink-0">
+                <Folder className="w-5 h-5 sm:w-6 sm:h-6" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-base sm:text-xl font-bold text-text-dark tracking-tight truncate">
+                    {loading ? 'Cargando proyecto...' : (proyecto?.nombre || 'Proyecto')}
+                  </h2>
+                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] sm:text-xs font-bold border ${
+                    proyecto?.activo !== false ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-600 border-red-200'
+                  }`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${proyecto?.activo !== false ? 'bg-green-500' : 'bg-red-500'}`} />
+                    {proyecto?.activo !== false ? 'Activo' : 'Inactivo'}
+                  </span>
+                  <span className="text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-full bg-lila-light/50 text-lila-main">
+                    {proyecto?.anfitrionId === user?.id ? 'Rol: Anfitrión' : 'Rol: Colaborador'}
+                  </span>
+                </div>
+                <p className="text-xs sm:text-sm text-gray-500 mt-1 line-clamp-2">
+                  {loading ? 'Cargando detalles...' : (proyecto?.descripcion || 'Sin descripción detallada')}
+                </p>
+              </div>
+            </div>
+
+            {/* Acceso rápido a Continuar donde lo dejamos */}
+            {continuity?.ultimoDiagrama && (
+              <button
+                type="button"
+                onClick={() => navigate(`/diagramas/${continuity.ultimoDiagrama!.id}`)}
+                className="w-full md:w-auto px-4 py-2.5 rounded-xl bg-gradient-to-r from-lila-main to-pink-main text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-2 hover:opacity-95 shadow-xs min-h-[44px] shrink-0"
+              >
+                <span>Continuar ({continuity.ultimoDiagrama.nombre})</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Grid de Métricas Reales de Progreso (CU21 - Métricas disponibles sin porcentajes ficticios) */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4">
+            <div className="rounded-2xl bg-gray-50/80 p-3 text-center sm:text-left">
+              <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider block">Diagramas</span>
+              <p className="text-base sm:text-xl font-bold text-text-dark mt-0.5">
+                {diagramas.filter(d => d.activo).length} <span className="text-xs text-gray-400 font-normal">/ {diagramas.length} tot.</span>
+              </p>
+              <span className="text-[10px] text-gray-500">modelos creados</span>
+            </div>
+
+            <div className="rounded-2xl bg-gray-50/80 p-3 text-center sm:text-left">
+              <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider block">Última Versión</span>
+              <p className="text-base sm:text-xl font-bold text-text-dark mt-0.5">
+                v{continuity?.ultimoDiagrama?.version || (diagramas[0]?.version ?? 1)}
+              </p>
+              <span className="text-[10px] text-gray-500 truncate block">
+                {continuity?.ultimoDiagrama?.nombre || 'último diagrama'}
+              </span>
+            </div>
+
+            <div className="rounded-2xl bg-gray-50/80 p-3 text-center sm:text-left">
+              <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider block">Última Actividad</span>
+              <p className="text-xs sm:text-sm font-bold text-text-dark mt-1 truncate" title={continuity?.ultimaActividad ? formatActivityDate(continuity.ultimaActividad) : 'Sin registrar'}>
+                {continuity?.ultimaActividad ? formatActivityDate(continuity.ultimaActividad) : 'Sin registrar'}
+              </p>
+              <span className="text-[10px] text-gray-500">en historial</span>
+            </div>
+
+            <div className="rounded-2xl bg-gray-50/80 p-3 text-center sm:text-left">
+              <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider block">Pendientes IA</span>
+              <p className="text-base sm:text-xl font-bold text-pink-main mt-0.5">
+                {continuity?.recomendacionesPendientes ?? 0}
+              </p>
+              <span className="text-[10px] text-gray-500">por revisar</span>
+            </div>
+          </div>
+        </section>
+
         {/* Tabs de Navegación */}
         <div className="flex gap-2 sm:gap-6 border-b border-gray-200 mb-6 sm:mb-8 overflow-x-auto">
           <button 
             type="button"
             onClick={() => setActiveTab('diagramas')}
-            className={`pb-3 px-2 sm:px-3 font-bold text-xs sm:text-sm transition-colors border-b-2 whitespace-nowrap min-h-[44px] flex items-center ${
+            className={`pb-3 px-2 sm:px-3 font-bold text-xs sm:text-sm transition-colors border-b-2 whitespace-nowrap min-h-[44px] flex items-center gap-1.5 ${
               activeTab === 'diagramas' ? 'border-lila-main text-lila-main' : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
           >
-            Diagramas UML
+            <LayoutTemplate className="w-4 h-4" />
+            <span>Diagramas UML</span>
+            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-lila-light/40 text-lila-main ml-1">
+              {diagramas.length}
+            </span>
           </button>
           <button 
             type="button"
             onClick={() => setActiveTab('participantes')}
-            className={`pb-3 px-2 sm:px-3 font-bold text-xs sm:text-sm transition-colors border-b-2 whitespace-nowrap min-h-[44px] flex items-center ${
+            className={`pb-3 px-2 sm:px-3 font-bold text-xs sm:text-sm transition-colors border-b-2 whitespace-nowrap min-h-[44px] flex items-center gap-1.5 ${
               activeTab === 'participantes' ? 'border-lila-main text-lila-main' : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
           >
-            Equipo del proyecto
+            <Users className="w-4 h-4" />
+            <span>Equipo del proyecto</span>
+            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-600 ml-1">
+              {participantes.length}
+            </span>
           </button>
           <button
             type="button"
@@ -512,9 +600,14 @@ export default function ProjectDiagrams() {
                         <FileJson className="w-6 h-6" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-bold text-base text-text-dark line-clamp-2 leading-tight pr-2">
-                          {d.nombre}
-                        </h3>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <h3 className="font-bold text-base text-text-dark line-clamp-2 leading-tight pr-2">
+                            {d.nombre}
+                          </h3>
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">
+                            v{d.version || 1}
+                          </span>
+                        </div>
                         <p className="text-[11px] font-medium text-gray-400 mt-1.5">
                           {d.fechaActualizacion ? new Date(d.fechaActualizacion).toLocaleDateString() : 'Reciente'}
                         </p>
@@ -524,23 +617,35 @@ export default function ProjectDiagrams() {
                           {d.activo ? 'Activo' : 'Inactivo'}
                         </span>
                       </div>
+                    </div>
 
-                      <div className="flex flex-col items-end justify-between ml-1 gap-1.5" onClick={(e) => e.stopPropagation()}>
+                    <div className="px-5 py-3 border-t border-gray-100/80 bg-gray-50/50 flex items-center justify-between" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/diagramas/${d.id}`)}
+                        className="flex items-center gap-1.5 text-xs sm:text-sm font-bold text-lila-main hover:text-pink-main transition-colors min-h-[44px]"
+                        title="Ver diagrama UML"
+                      >
+                        <Eye className="w-4 h-4" />
+                        <span>Ver diagrama UML</span>
+                      </button>
+
+                      <div className="flex items-center gap-1">
                         <button 
                           type="button"
                           onClick={() => navigate(`/diagramas/${d.id}`)}
-                          className="p-2 text-lila-main hover:bg-lila-light/50 rounded-xl transition-colors min-h-[40px] min-w-[40px] flex items-center justify-center"
+                          className="p-2 text-lila-main hover:bg-lila-light/50 rounded-xl transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
                           title="Abrir diagrama"
                           aria-label="Abrir diagrama"
                         >
                           <ArrowRight className="w-5 h-5" />
                         </button>
                         {canEdit() && (
-                          <div className="flex gap-1">
+                          <>
                             <button 
                               type="button"
                               onClick={(e) => openEditModal(d, e)}
-                              className="p-2 text-gray-400 hover:text-lila-main hover:bg-lila-light/50 rounded-xl transition-colors min-h-[40px] min-w-[40px] flex items-center justify-center"
+                              className="p-2 text-gray-400 hover:text-lila-main hover:bg-lila-light/50 rounded-xl transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
                               title="Renombrar diagrama"
                               aria-label="Renombrar diagrama"
                             >
@@ -549,7 +654,7 @@ export default function ProjectDiagrams() {
                             <button 
                               type="button"
                               onClick={(e) => openStatusModal(d, e)}
-                              className={`p-2 rounded-xl transition-colors min-h-[40px] min-w-[40px] flex items-center justify-center ${
+                              className={`p-2 rounded-xl transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center ${
                                 d.activo ? 'text-gray-400 hover:text-red-500 hover:bg-red-50' : 'text-gray-400 hover:text-green-500 hover:bg-green-50'
                               }`}
                               title={d.activo ? "Desactivar" : "Activar"}
@@ -557,7 +662,7 @@ export default function ProjectDiagrams() {
                             >
                               {d.activo ? <Square className="w-4 h-4" /> : <Play className="w-4 h-4" />}
                             </button>
-                          </div>
+                          </>
                         )}
                       </div>
                     </div>

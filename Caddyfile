@@ -1,0 +1,22 @@
+# UMLForge AI - Caddy Reverse Proxy & Automatic SSL
+
+http://18.214.98.32, http://18.214.98.32.sslip.io {
+    redir https://18.214.98.32.sslip.io{uri} permanent
+}
+
+https://18.214.98.32.sslip.io {
+    # WebSocket STOMP endpoint
+    @websockets {
+        path /ws-uml /ws-uml/* /ws /ws/*
+    }
+    reverse_proxy @websockets backend:8080
+
+    # API REST backend
+    @api {
+        path /api /api/*
+    }
+    reverse_proxy @api backend:8080
+
+    # Frontend React SPA y PWA (Service Worker, Assets, App Shell)
+    reverse_proxy frontend:80
+}

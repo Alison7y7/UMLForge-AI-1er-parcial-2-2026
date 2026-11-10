@@ -34,7 +34,14 @@ import {
   FileCode,
   Smartphone,
   Mic,
-  MessageSquare
+  MessageSquare,
+  ZoomIn,
+  ZoomOut,
+  CheckCircle2,
+  Lock,
+  Edit2,
+  Bell,
+  CircleHelp
 } from 'lucide-react';
 
 import { useVoiceRecognition } from '../hooks/useVoiceRecognition';
@@ -132,6 +139,11 @@ export default function UMLEditor() {
   const userPermissions = user?.permisos || [];
   // Permisos: Admin, Anfitrión y Colaborador tienen derechos de edición
   const canEdit = !user || userPermissions.includes('EDITAR_DIAGRAMAS') || isRoleAdmin(userRole) || isRoleAnfitrion(userRole) || isRoleColaborador(userRole);
+
+  // CU22: Modo de Visualización Móvil (protección contra toques accidentales en celulares)
+  const isMobileScreen = typeof window !== 'undefined' ? window.innerWidth < 1024 : false;
+  const [isReadOnlyView, setIsReadOnlyView] = useState<boolean>(isMobileScreen);
+  const isEffectivelyEditing = canEdit && !isReadOnlyView;
   
   const {
     historyEvents, diagramModelUpdate, connectedUsers, presenceReceived, connectionStatus,
@@ -343,7 +355,8 @@ export default function UMLEditor() {
         // The own commit was confirmed while newer local edits were already in progress.
         setSaveStatus('dirty');
       }
-    } catch {
+    } catch (err) {
+      console.warn('Error procesando actualización remota:', err);
       setRemoteConflict('Se recibió una actualización remota inválida; el canvas local no fue modificado.');
     }
   }, [diagramModelUpdate, setNodes, setEdges]);
@@ -880,8 +893,250 @@ export default function UMLEditor() {
     }
   };
 
+  // CU22: Ficha de inspección y consulta de solo lectura para móvil
+  const renderReadOnlyInspectorContent = () => {
+    if (!selectedNode && !selectedEdge) {
+      return (
+        <div className="text-center py-8 px-4">
+          <div className="w-12 h-12 rounded-2xl bg-lila-light/30 text-lila-main flex items-center justify-center mx-auto mb-3">
+            <Eye className="w-6 h-6" />
+          </div>
+          <p className="text-sm font-bold text-gray-700">Modo Visualización</p>
+          <p className="text-xs text-gray-500 mt-1 max-w-xs mx-auto">
+            Toca cualquier clase o relación en el diagrama para inspeccionar sus atributos, métodos o multiplicidades sin riesgo de modificarla accidentalmente.
+          </p>
+          {canEdit && (
+            <button
+              type="button"
+              onClick={() => setIsReadOnlyView(false)}
+              className="mt-4 px-4 py-2.5 min-h-[44px] bg-lila-main text-white text-xs font-bold rounded-xl hover:opacity-90 active:scale-95 transition-all inline-flex items-center gap-2 shadow-xs"
+            >
+              <Edit2 className="w-4 h-4" /> Cambiar a Modo Edición
+            </button>
+          )}
+        </div>
+      );
+    }
+
+    if (selectedNode) {
+      const attrs = (selectedNode.data.atributos as any[]) || [];
+      const methods = (selectedNode.data.metodos as any[]) || [];
+      const connected = edges.filter(e => e.source === selectedNode.id || e.target === selectedNode.id);
+
+      return (
+        <div className="space-y-4">
+          {/* Header de la Clase */}
+          <div className="p-3.5 bg-lila-light/25 border border-lila-light/50 rounded-2xl">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] font-bold text-lila-main uppercase tracking-wider">Clase UML</span>
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white text-gray-600 border border-gray-100">
+                Solo Lectura
+              </span>
+            </div>
+            {selectedNode.data.estereotipo && (
+              <p className="text-xs text-gray-500 font-mono mt-0.5">&lt;&lt;{selectedNode.data.estereotipo}&gt;&gt;</p>
+            )}
+            <h3 className="text-lg font-bold text-text-dark break-words mt-0.5">
+              {selectedNode.data.nombre}
+            </h3>
+          </div>
+
+          {/* Atributos */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                Atributos ({attrs.length})
+              </span>
+            </div>
+            {attrs.length === 0 ? (
+              <div className="text-xs text-gray-400 italic py-2 px-3 bg-gray-50 rounded-xl">
+                Sin atributos definidos.
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-100 rounded-xl border border-gray-200/70 bg-white overflow-hidden">
+                {attrs.map((attr, idx) => (
+                  <div key={attr.id || idx} className="p-2.5 flex items-center justify-between gap-2 text-xs">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="w-5 h-5 rounded-md bg-gray-100 text-gray-600 font-mono font-bold flex items-center justify-center text-[11px] shrink-0">
+                        {attr.visibilidad === 'public' ? '+' : attr.visibilidad === 'private' ? '-' : attr.visibilidad === 'protected' ? '#' : '~'}
+                      </span>
+                      <span className="font-semibold text-gray-800 truncate">{attr.nombre}</span>
+                    </div>
+                    <span className="font-mono text-lila-main font-semibold bg-lila-light/20 px-2 py-0.5 rounded text-[11px] shrink-0">
+                      {attr.tipo || 'Object'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Métodos */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                Métodos ({methods.length})
+              </span>
+            </div>
+            {methods.length === 0 ? (
+              <div className="text-xs text-gray-400 italic py-2 px-3 bg-gray-50 rounded-xl">
+                Sin métodos definidos.
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-100 rounded-xl border border-gray-200/70 bg-white overflow-hidden">
+                {methods.map((method, idx) => {
+                  const params = Array.isArray(method.parametros) ? method.parametros : [];
+                  return (
+                    <div key={method.id || idx} className="p-2.5 space-y-1 text-xs">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="w-5 h-5 rounded-md bg-pink-50 text-pink-600 font-mono font-bold flex items-center justify-center text-[11px] shrink-0">
+                            {method.visibilidad === 'public' ? '+' : method.visibilidad === 'private' ? '-' : method.visibilidad === 'protected' ? '#' : '~'}
+                          </span>
+                          <span className="font-semibold text-gray-800 truncate">{method.nombre}()</span>
+                        </div>
+                        <span className="font-mono text-gray-600 bg-gray-100 px-2 py-0.5 rounded text-[11px] shrink-0">
+                          {method.tipoRetorno || 'void'}
+                        </span>
+                      </div>
+                      {params.length > 0 && (
+                        <div className="pl-7 text-[11px] text-gray-500 font-mono">
+                          Parámetros: {params.map((p: any) => `${p.nombre}: ${p.tipo}`).join(', ')}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Relaciones Conectadas */}
+          {connected.length > 0 && (
+            <div className="space-y-2">
+              <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block">
+                Relaciones ({connected.length})
+              </span>
+              <div className="divide-y divide-gray-100 rounded-xl border border-gray-200/70 bg-white overflow-hidden text-xs">
+                {connected.map(edge => {
+                  const isSource = edge.source === selectedNode.id;
+                  const otherNodeId = isSource ? edge.target : edge.source;
+                  const otherNode = nodes.find(n => n.id === otherNodeId);
+                  const relType = relationToolLabels[edge.data?.tipo as string] || edge.data?.tipo || 'Relación';
+                  return (
+                    <div key={edge.id} className="p-2.5 flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-gray-800 truncate">
+                          {isSource ? 'Hacia ' : 'Desde '} {otherNode?.data.nombre || 'Clase'}
+                        </p>
+                        <p className="text-[11px] text-gray-500">{relType}</p>
+                      </div>
+                      <span className="text-[11px] font-mono font-bold bg-gray-100 px-2 py-0.5 rounded text-gray-700 shrink-0">
+                        {isSource ? (edge.data?.multiplicidadDestino || '1') : (edge.data?.multiplicidadOrigen || '1')}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Acciones */}
+          <div className="pt-2 flex gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedNodeId(null);
+                setIsRightPanelOpen(false);
+              }}
+              className="flex-1 py-2.5 px-3 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold rounded-xl transition-colors min-h-[44px]"
+            >
+              Cerrar ficha
+            </button>
+            {canEdit && (
+              <button
+                type="button"
+                onClick={() => setIsReadOnlyView(false)}
+                className="py-2.5 px-3 bg-lila-light/40 text-lila-main hover:bg-lila-light/70 text-xs font-bold rounded-xl transition-colors min-h-[44px]"
+              >
+                Editar clase
+              </button>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    if (selectedEdge) {
+      const sourceNode = nodes.find(n => n.id === selectedEdge.source);
+      const targetNode = nodes.find(n => n.id === selectedEdge.target);
+      const relType = relationToolLabels[selectedEdge.data?.tipo as string] || selectedEdge.data?.tipo || 'Asociación';
+
+      return (
+        <div className="space-y-4">
+          <div className="p-3.5 bg-pink-light/25 border border-pink-light/50 rounded-2xl">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] font-bold text-pink-main uppercase tracking-wider">Relación UML</span>
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white text-gray-600 border border-gray-100">
+                Solo Lectura
+              </span>
+            </div>
+            <h3 className="text-base font-bold text-text-dark mt-0.5">{relType}</h3>
+            {selectedEdge.data?.nombre && (
+              <p className="text-xs text-gray-600 font-medium mt-0.5">Nombre: {selectedEdge.data.nombre}</p>
+            )}
+          </div>
+
+          <div className="rounded-xl border border-gray-200/70 bg-white divide-y divide-gray-100 text-xs overflow-hidden">
+            <div className="p-3">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Clase Origen</span>
+              <p className="text-sm font-bold text-gray-800 mt-0.5">{sourceNode?.data.nombre || 'Clase Origen'}</p>
+              <div className="flex items-center gap-3 mt-1 text-[11px] text-gray-600">
+                <span>Multiplicidad: <strong>{selectedEdge.data?.multiplicidadOrigen || '1'}</strong></span>
+                {selectedEdge.data?.rolOrigen && <span>Rol: <em>{selectedEdge.data.rolOrigen}</em></span>}
+              </div>
+            </div>
+
+            <div className="p-3">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Clase Destino</span>
+              <p className="text-sm font-bold text-gray-800 mt-0.5">{targetNode?.data.nombre || 'Clase Destino'}</p>
+              <div className="flex items-center gap-3 mt-1 text-[11px] text-gray-600">
+                <span>Multiplicidad: <strong>{selectedEdge.data?.multiplicidadDestino || '1'}</strong></span>
+                {selectedEdge.data?.rolDestino && <span>Rol: <em>{selectedEdge.data.rolDestino}</em></span>}
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-2 flex gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedEdgeId(null);
+                setIsRightPanelOpen(false);
+              }}
+              className="flex-1 py-2.5 px-3 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold rounded-xl transition-colors min-h-[44px]"
+            >
+              Cerrar ficha
+            </button>
+            {canEdit && (
+              <button
+                type="button"
+                onClick={() => setIsReadOnlyView(false)}
+                className="py-2.5 px-3 bg-pink-light/40 text-pink-700 hover:bg-pink-light/70 text-xs font-bold rounded-xl transition-colors min-h-[44px]"
+              >
+                Editar relación
+              </button>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
   // Renderizador unificado para el contenido del Inspector (compartido entre escritorio y celular)
-  const renderInspectorContent = () => (
+  const renderEditInspectorContent = () => (
     <>
       {!selectedNode && !selectedEdge && (
         <div className="text-center py-8 px-4">
@@ -1251,6 +1506,11 @@ export default function UMLEditor() {
     </>
   );
 
+  // Renderizador principal del Inspector que conmuta según el modo
+  const renderInspectorContent = () => (
+    isReadOnlyView ? renderReadOnlyInspectorContent() : renderEditInspectorContent()
+  );
+
   // Renderizador unificado para Colaboración y Presencia
   const renderCollaborationContent = () => (
     <div className="space-y-6">
@@ -1330,10 +1590,10 @@ export default function UMLEditor() {
       <header ref={headerRef} className="h-14 bg-white/95 backdrop-blur-md border-b border-lila-light/50 flex items-center justify-between gap-2 px-3 lg:px-6 z-40 shadow-sm shrink-0 w-full relative">
         <div ref={leftRef} className="flex items-center gap-1.5 md:gap-3 shrink-0 min-w-0">
           <button 
-            onClick={() => navigate(proyectoId ? `/proyectos/${proyectoId}` : '/dashboard')}
-            className="p-2 min-w-[40px] min-h-[40px] flex items-center justify-center hover:bg-lila-light/30 rounded-xl text-text-light hover:text-lila-main transition-colors shrink-0"
-            title="Volver"
-            aria-label="Volver"
+            onClick={() => navigate(proyectoId ? `/proyectos/${proyectoId}` : '/proyectos')}
+            className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-lila-light/30 rounded-xl text-text-light hover:text-lila-main transition-colors shrink-0"
+            title="Volver al proyecto"
+            aria-label="Volver al proyecto"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
@@ -1341,10 +1601,25 @@ export default function UMLEditor() {
           <input 
             value={nombreDiagrama}
             onChange={(e) => setNombreDiagrama(e.target.value)}
-            disabled={!canEdit}
-            className="font-bold text-gray-800 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-lila-light rounded px-1.5 py-1 text-sm md:text-base max-w-[120px] xs:max-w-[160px] sm:max-w-[220px] truncate"
+            disabled={!canEdit || isReadOnlyView}
+            className="font-bold text-gray-800 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-lila-light rounded px-1.5 py-1 text-sm md:text-base max-w-[110px] xs:max-w-[150px] sm:max-w-[200px] truncate"
             placeholder="Diagrama"
           />
+
+          {/* CU22: Conmutador de Modo Visualización Móvil */}
+          <button
+            type="button"
+            onClick={() => setIsReadOnlyView(!isReadOnlyView)}
+            className={`inline-flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-full text-[10px] sm:text-xs font-bold transition-all min-h-[36px] ${
+              isReadOnlyView
+                ? 'bg-lila-light/60 text-lila-main border border-lila-light hover:bg-lila-light'
+                : 'bg-pink-light/50 text-pink-700 border border-pink-200 hover:bg-pink-light'
+            }`}
+            title={isReadOnlyView ? "Modo visualización (solo lectura segura). Toca para editar." : "Modo edición activo. Toca para pasar a visualización."}
+          >
+            {isReadOnlyView ? <Eye className="w-3.5 h-3.5" /> : <Edit2 className="w-3.5 h-3.5" />}
+            <span className="hidden xs:inline">{isReadOnlyView ? 'Visualización' : 'Edición'}</span>
+          </button>
 
           <span
             className={`inline-flex items-center text-[10px] md:text-xs font-semibold px-2 py-0.5 rounded-full shrink-0 ${
@@ -1513,6 +1788,17 @@ export default function UMLEditor() {
 
                   <div className="h-px bg-gray-100 my-1"></div>
 
+                  {/* Grupo Sistema y Ayuda */}
+                  <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-3 pt-1">Sistema y Ayuda</div>
+                  <button onClick={() => { setIsMobileMenuOpen(false); navigate('/configuracion/notificaciones'); }} className="px-3 py-2 text-left text-xs font-medium text-gray-700 hover:bg-lila-light/20 rounded-xl transition-colors flex items-center gap-2">
+                    <Bell className="w-4 h-4 text-lila-main" /> Notificaciones Push
+                  </button>
+                  <button onClick={() => { setIsMobileMenuOpen(false); window.dispatchEvent(new CustomEvent('umlforge:open-help')); }} className="px-3 py-2 text-left text-xs font-medium text-gray-700 hover:bg-lila-light/20 rounded-xl transition-colors flex items-center gap-2">
+                    <CircleHelp className="w-4 h-4 text-lila-main" /> Ayuda y Manual
+                  </button>
+
+                  <div className="h-px bg-gray-100 my-1"></div>
+
                   <button onClick={() => { setIsMobileMenuOpen(false); navigate(proyectoId ? `/proyectos/${proyectoId}` : '/dashboard'); }} className="px-3 py-2 text-left text-xs font-medium text-gray-500 hover:bg-gray-100 rounded-xl transition-colors flex items-center gap-2">
                     <ArrowLeft className="w-4 h-4" /> Volver al Proyecto
                   </button>
@@ -1607,54 +1893,84 @@ export default function UMLEditor() {
         {/* LIENZO REACT FLOW RESPONSIVO CON SOPORTE TÁCTIL */}
         <main className="flex-1 relative bg-[#FAFAFC] min-w-0 min-h-0">
           {loadError && (
-            <div className="absolute left-1/2 top-4 z-30 flex max-w-xl -translate-x-1/2 items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow-lg">
-              <span>{loadError}</span>
-              <button
-                type="button"
-                onClick={() => setLoadAttempt(value => value + 1)}
-                className="shrink-0 font-bold underline"
-              >
-                Reintentar
-              </button>
+            <div className="absolute top-3 inset-x-3 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 z-30 flex max-w-[92vw] sm:max-w-xl items-center justify-between gap-3 rounded-2xl border border-red-200 bg-red-50/95 backdrop-blur-md px-4 py-3 text-xs sm:text-sm text-red-700 shadow-xl">
+              <span className="min-w-0 flex-1">{loadError}</span>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setLoadAttempt(value => value + 1)}
+                  className="font-bold underline text-xs sm:text-sm"
+                >
+                  Reintentar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLoadError('')}
+                  className="p-1 rounded-lg text-red-500 hover:bg-red-100"
+                  aria-label="Cerrar"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           )}
           {saveError && !remoteConflict && (
-            <div className="absolute left-1/2 top-4 z-30 flex max-w-xl -translate-x-1/2 items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 shadow-lg">
-              <span>{saveError}</span>
-              <button
-                type="button"
-                onClick={handleSave}
-                className="shrink-0 font-bold underline"
-              >
-                Reintentar guardado
-              </button>
+            <div className="absolute top-3 inset-x-3 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 z-30 flex max-w-[92vw] sm:max-w-xl items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50/95 backdrop-blur-md px-4 py-3 text-xs sm:text-sm text-amber-800 shadow-xl">
+              <span className="min-w-0 flex-1">{saveError}</span>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  className="font-bold underline text-xs sm:text-sm"
+                >
+                  Reintentar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSaveError('')}
+                  className="p-1 rounded-lg text-amber-700 hover:bg-amber-100"
+                  aria-label="Cerrar"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           )}
           {remoteConflict && (
-            <div className="absolute inset-x-3 top-4 z-30 mx-auto flex max-w-2xl items-center gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-lg">
+            <div className="absolute top-3 inset-x-3 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 z-30 flex max-w-[92vw] sm:max-w-2xl items-center justify-between gap-3 rounded-2xl border border-amber-300 bg-amber-50/95 backdrop-blur-md px-4 py-3 text-xs sm:text-sm text-amber-900 shadow-xl">
               <span className="min-w-0 flex-1">{remoteConflict}</span>
-              {pendingRemoteUpdate && (
-                <>
-                  <button
-                    type="button"
-                    onClick={downloadLocalConflictCopy}
-                    className="shrink-0 font-bold underline"
-                  >
-                    Descargar copia local
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (window.confirm('Se reemplazará el canvas local por la versión confirmada del servidor.')) {
-                        applyPendingRemoteUpdate();
-                      }
-                    }}
-                    className="shrink-0 font-bold underline"
-                  >
-                    Usar versión remota
-                  </button>
-                </>
-              )}
+              <div className="flex items-center gap-2 shrink-0">
+                {pendingRemoteUpdate && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={downloadLocalConflictCopy}
+                      className="font-bold underline text-xs"
+                    >
+                      Descargar copia
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (window.confirm('Se reemplazará el canvas local por la versión confirmada del servidor.')) {
+                          applyPendingRemoteUpdate();
+                        }
+                      }}
+                      className="font-bold underline text-xs"
+                    >
+                      Usar remota
+                    </button>
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setRemoteConflict('')}
+                  className="p-1 rounded-lg text-amber-800 hover:bg-amber-100"
+                  aria-label="Cerrar"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           )}
 
@@ -1692,18 +2008,30 @@ export default function UMLEditor() {
               ? nodes.map(node => node.id === pendingRelationSourceId ? { ...node, selected: true } : node)
               : nodes}
             edges={edges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
+            onNodesChange={isEffectivelyEditing ? onNodesChange : (changes) => {
+              const selectionChanges = changes.filter((c: any) => c.type === 'select');
+              if (selectionChanges.length > 0) onNodesChange(selectionChanges);
+            }}
+            onEdgesChange={isEffectivelyEditing ? onEdgesChange : (changes) => {
+              const selectionChanges = changes.filter((c: any) => c.type === 'select');
+              if (selectionChanges.length > 0) onEdgesChange(selectionChanges);
+            }}
             onConnect={(conn) => {
-              if (!canEdit) return;
+              if (!isEffectivelyEditing) return;
               if (selectedTool === 'select' || selectedTool === 'umlClass') return;
               const newEdge = { ...conn, id: generateId(), type: 'umlRelation', data: { tipo: selectedTool, nombre: '', multiplicidadOrigen: '', multiplicidadDestino: '', rolOrigen: '', rolDestino: '' }, markerEnd: getMarkerEnd(selectedTool) };
               setEdges([...edges, newEdge as any]);
               broadcastEvent('EDGE_CREATED', newEdge.id, newEdge);
             }}
-            onNodeClick={(_, node) => handleNodeClick(node)}
+            onNodeClick={(_, node) => {
+              handleNodeClick(node);
+              if (isReadOnlyView) {
+                setRightTab('inspector');
+                setIsRightPanelOpen(true);
+              }
+            }}
             onNodeDragStop={(_, node) => {
-              if (canEdit) broadcastEvent('NODE_MOVED', node.id, node.position);
+              if (isEffectivelyEditing) broadcastEvent('NODE_MOVED', node.id, node.position);
             }}
             onEdgeClick={(_, edge) => {
               setSelectedEdgeId(edge.id);
@@ -1715,7 +2043,7 @@ export default function UMLEditor() {
               setSelectedNodeId(null);
               setSelectedEdgeId(null);
               
-              if (selectedTool === 'umlClass' && canEdit) {
+              if (selectedTool === 'umlClass' && isEffectivelyEditing) {
                 const target = e.target as HTMLElement;
                 const rect = target.getBoundingClientRect();
                 const x = e.clientX - rect.left;
@@ -1741,7 +2069,12 @@ export default function UMLEditor() {
             }}
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
-            onInit={setReactFlowInstance}
+            fitView
+            fitViewOptions={{ padding: 0.25, includeHiddenNodes: false }}
+            onInit={(instance) => {
+              setReactFlowInstance(instance);
+              setTimeout(() => instance.fitView({ padding: 0.25, duration: 250 }), 150);
+            }}
             connectionMode={ConnectionMode.Loose}
             defaultEdgeOptions={{ type: 'umlRelation', markerEnd: { type: MarkerType.ArrowClosed, color: '#8B5CF6' } }}
             className="bg-bg-main"
@@ -1751,7 +2084,8 @@ export default function UMLEditor() {
             zoomOnScroll={true}
             minZoom={0.2}
             maxZoom={2.5}
-            nodesDraggable={canEdit}
+            nodesDraggable={isEffectivelyEditing}
+            nodesConnectable={isEffectivelyEditing}
             elementsSelectable={true}
           >
             <svg style={{ position: 'absolute', top: 0, left: 0, width: 0, height: 0 }}>
@@ -1781,6 +2115,70 @@ export default function UMLEditor() {
               className="hidden md:block" 
             />
           </ReactFlow>
+
+          {/* Watermark de estado vacío cuando el diagrama no tiene clases */}
+          {nodes.length === 0 && !loading && (
+            <div className="absolute inset-0 pointer-events-none flex items-center justify-center p-4 z-10">
+              <div className="pointer-events-auto text-center p-6 bg-white/90 backdrop-blur-md rounded-3xl border border-lila-light/50 shadow-xl max-w-sm mx-auto animate-in fade-in zoom-in-95 duration-200">
+                <div className="w-12 h-12 rounded-2xl bg-lila-light/30 text-lila-main flex items-center justify-center mx-auto mb-3">
+                  <Sparkles className="w-6 h-6" />
+                </div>
+                <h3 className="text-base font-bold text-gray-800">Diagrama sin clases</h3>
+                <p className="text-xs text-gray-500 mt-1 mb-4">
+                  Comienza agregando tu primera clase UML o genera un modelo con el Asistente IA.
+                </p>
+                {canEdit && (
+                  <div className="flex flex-col sm:flex-row gap-2 justify-center">
+                    <button
+                      type="button"
+                      onClick={handleAddClass}
+                      className="px-3.5 py-2.5 bg-gradient-to-r from-lila-main to-pink-main text-white text-xs font-bold rounded-xl shadow-xs hover:opacity-90 active:scale-95 transition-all flex items-center justify-center gap-1.5"
+                    >
+                      <PlusSquare className="w-4 h-4" /> + Nueva Clase
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowIaModal(true)}
+                      className="px-3.5 py-2.5 bg-lila-light/30 text-lila-main text-xs font-bold rounded-xl hover:bg-lila-light/50 active:scale-95 transition-all flex items-center justify-center gap-1.5"
+                    >
+                      <Sparkles className="w-4 h-4" /> Asistente IA
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Controles de Zoom Flotantes para Celular (Visibles en pantallas < md) */}
+          <div className="md:hidden absolute top-3 right-3 z-20 flex flex-col gap-1 bg-white/95 backdrop-blur-md rounded-2xl border border-lila-light/60 shadow-lg p-1">
+            <button
+              type="button"
+              onClick={() => reactFlowInstance?.zoomIn({ duration: 200 })}
+              title="Acercar (Zoom +)"
+              aria-label="Acercar"
+              className="p-2 min-w-[38px] min-h-[38px] flex items-center justify-center rounded-xl text-gray-700 hover:bg-lila-light/30 active:scale-95 transition-all"
+            >
+              <ZoomIn className="w-4 h-4 text-lila-main" />
+            </button>
+            <button
+              type="button"
+              onClick={() => reactFlowInstance?.zoomOut({ duration: 200 })}
+              title="Alejar (Zoom -)"
+              aria-label="Alejar"
+              className="p-2 min-w-[38px] min-h-[38px] flex items-center justify-center rounded-xl text-gray-700 hover:bg-lila-light/30 active:scale-95 transition-all"
+            >
+              <ZoomOut className="w-4 h-4 text-lila-main" />
+            </button>
+            <button
+              type="button"
+              onClick={() => reactFlowInstance?.fitView({ padding: 0.25, duration: 300 })}
+              title="Centrar diagrama"
+              aria-label="Centrar vista"
+              className="p-2 min-w-[38px] min-h-[38px] flex items-center justify-center rounded-xl text-gray-700 hover:bg-lila-light/30 active:scale-95 transition-all"
+            >
+              <Maximize2 className="w-4 h-4 text-lila-main" />
+            </button>
+          </div>
 
           {/* MiniMap flotante para Celulares/Tablets cuando el usuario lo activa */}
           {showMiniMap && (
@@ -1853,134 +2251,234 @@ export default function UMLEditor() {
 
           {/* BARRA DE HERRAMIENTAS FLOTANTE INFERIOR PARA CELULARES Y TABLETS */}
           <div className="fixed bottom-3 inset-x-2 sm:inset-x-4 z-30 lg:hidden flex justify-center pointer-events-none pb-[env(safe-area-inset-bottom,0px)]">
-            <div className="pointer-events-auto bg-white/95 backdrop-blur-md border border-lila-light/60 shadow-2xl rounded-2xl p-1.5 flex items-center justify-around gap-1 w-full max-w-md">
-              {/* 1. Seleccionar */}
-              <button
-                onClick={() => handleToolChange('select')}
-                title="Modo Selección"
-                aria-label="Seleccionar"
-                className={`p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl transition-all ${selectedTool === 'select' ? 'bg-lila-main text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'}`}
-              >
-                <MousePointer2 className="w-5 h-5" />
-              </button>
+            <div className="pointer-events-auto bg-white/95 backdrop-blur-md border border-lila-light/60 shadow-2xl rounded-2xl p-1.5 flex items-center justify-around gap-1 w-full max-w-md overflow-x-auto no-scrollbar scroll-smooth">
+              {isReadOnlyView ? (
+                <>
+                  {/* Modo Visualización: Acciones táctiles cómodas de solo lectura (CU22) */}
+                  <button
+                    type="button"
+                    onClick={() => handleToolChange('select')}
+                    title="Modo Selección / Consulta"
+                    aria-label="Seleccionar"
+                    className={`p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl transition-all ${
+                      selectedTool === 'select' ? 'bg-lila-main text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    <MousePointer2 className="w-5 h-5" />
+                  </button>
 
-              {/* 2. Crear Clase */}
-              {canEdit && (
-                <button
-                  onClick={() => {
-                    handleAddClass();
-                  }}
-                  title="Crear nueva clase"
-                  aria-label="Crear Clase"
-                  className="p-2 min-w-[38px] sm:min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-gray-700 hover:bg-lila-light/30 active:scale-95 transition-all"
-                >
-                  <PlusSquare className="w-5 h-5 text-lila-main" />
-                </button>
-              )}
+                  <button
+                    type="button"
+                    onClick={() => reactFlowInstance?.fitView({ padding: 0.2, duration: 300 })}
+                    title="Ajustar a pantalla"
+                    aria-label="Ajustar a pantalla"
+                    className="p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-gray-700 hover:bg-lila-light/30 active:scale-95 transition-all"
+                  >
+                    <Maximize2 className="w-5 h-5 text-lila-main" />
+                  </button>
 
-              {/* Control por Voz */}
-              <button
-                onClick={handleOpenVoice}
-                title="Control por voz"
-                aria-label="Control por voz"
-                className={`p-2 min-w-[38px] sm:min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl transition-all relative ${
-                  voiceRecognition.state === 'escuchando'
-                    ? 'bg-red-500 text-white shadow-lg animate-pulse ring-2 ring-red-300'
-                    : 'text-gray-600 hover:bg-lila-light/30 hover:text-lila-main active:scale-95'
-                }`}
-              >
-                <Mic className="w-5 h-5 text-lila-main" />
-                {voiceRecognition.state === 'escuchando' && (
-                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-600 rounded-full ring-2 ring-white animate-ping"></span>
-                )}
-              </button>
+                  <button
+                    type="button"
+                    onClick={() => reactFlowInstance?.zoomIn({ duration: 200 })}
+                    title="Acercar (Zoom +)"
+                    aria-label="Zoom +"
+                    className="p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-gray-600 hover:bg-gray-100 active:scale-95 transition-all"
+                  >
+                    <ZoomIn className="w-5 h-5" />
+                  </button>
 
-              {/* 3. Elegir Relación */}
-              {canEdit && (
-                <button
-                  onClick={() => setIsMobileRelationMenuOpen(!isMobileRelationMenuOpen)}
-                  title="Elegir relación UML"
-                  aria-label="Relaciones"
-                  className={`p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl transition-all relative ${isRelationTool(selectedTool) ? 'bg-lila-main text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'}`}
-                >
-                  <ArrowRight className="w-5 h-5" />
-                  {isRelationTool(selectedTool) && (
-                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-pink-main rounded-full ring-2 ring-white"></span>
+                  <button
+                    type="button"
+                    onClick={() => reactFlowInstance?.zoomOut({ duration: 200 })}
+                    title="Alejar (Zoom -)"
+                    aria-label="Zoom -"
+                    className="p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-gray-600 hover:bg-gray-100 active:scale-95 transition-all"
+                  >
+                    <ZoomOut className="w-5 h-5" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowMiniMap(!showMiniMap)}
+                    title={showMiniMap ? "Ocultar minimapa" : "Mostrar minimapa"}
+                    aria-label="Minimapa"
+                    className={`p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl transition-all ${
+                      showMiniMap ? 'bg-lila-light/40 text-lila-main font-bold' : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    <Map className="w-5 h-5" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRightTab('inspector');
+                      setIsRightPanelOpen(!isRightPanelOpen);
+                    }}
+                    title="Ver ficha de elemento"
+                    aria-label="Ficha"
+                    className={`p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl transition-all relative ${
+                      isRightPanelOpen && rightTab === 'inspector' ? 'bg-lila-light/50 text-lila-main' : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    <Eye className="w-5 h-5" />
+                    {(selectedNodeId || selectedEdgeId) && (
+                      <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-lila-main rounded-full" />
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRightTab('chat');
+                      setIsRightPanelOpen(true);
+                    }}
+                    title="Abrir chat del proyecto"
+                    aria-label="Chat del proyecto"
+                    className={`p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl transition-all relative ${
+                      isRightPanelOpen && rightTab === 'chat' ? 'bg-lila-light/50 text-lila-main' : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    <MessageSquare className="w-5 h-5 text-lila-main" />
+                  </button>
+
+                  {canEdit && (
+                    <button
+                      type="button"
+                      onClick={() => setIsReadOnlyView(false)}
+                      title="Cambiar a Modo Edición"
+                      aria-label="Modo Edición"
+                      className="p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-pink-600 hover:bg-pink-50 active:scale-95 transition-all"
+                    >
+                      <Edit2 className="w-5 h-5" />
+                    </button>
                   )}
-                </button>
+                </>
+              ) : (
+                <>
+                  {/* Modo Edición: Herramientas existentes */}
+                  <button
+                    onClick={() => handleToolChange('select')}
+                    title="Modo Selección"
+                    aria-label="Seleccionar"
+                    className={`p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl transition-all ${
+                      selectedTool === 'select' ? 'bg-lila-main text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    <MousePointer2 className="w-5 h-5" />
+                  </button>
+
+                  {canEdit && (
+                    <button
+                      onClick={() => {
+                        handleAddClass();
+                      }}
+                      title="Crear nueva clase"
+                      aria-label="Crear Clase"
+                      className="p-2 min-w-[38px] sm:min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-gray-700 hover:bg-lila-light/30 active:scale-95 transition-all"
+                    >
+                      <PlusSquare className="w-5 h-5 text-lila-main" />
+                    </button>
+                  )}
+
+                  <button
+                    onClick={handleOpenVoice}
+                    title="Control por voz"
+                    aria-label="Control por voz"
+                    className={`p-2 min-w-[38px] sm:min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl transition-all relative ${
+                      voiceRecognition.state === 'escuchando'
+                        ? 'bg-red-500 text-white shadow-lg animate-pulse ring-2 ring-red-300'
+                        : 'text-gray-600 hover:bg-lila-light/30 hover:text-lila-main active:scale-95'
+                    }`}
+                  >
+                    <Mic className="w-5 h-5 text-lila-main" />
+                    {voiceRecognition.state === 'escuchando' && (
+                      <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-600 rounded-full ring-2 ring-white animate-ping"></span>
+                    )}
+                  </button>
+
+                  {canEdit && (
+                    <button
+                      onClick={() => setIsMobileRelationMenuOpen(!isMobileRelationMenuOpen)}
+                      title="Elegir relación UML"
+                      aria-label="Relaciones"
+                      className={`p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl transition-all relative ${
+                        isRelationTool(selectedTool) ? 'bg-lila-main text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'
+                      }`}
+                    >
+                      <ArrowRight className="w-5 h-5" />
+                      {isRelationTool(selectedTool) && (
+                        <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-pink-main rounded-full ring-2 ring-white"></span>
+                      )}
+                    </button>
+                  )}
+
+                  <button
+                    onClick={() => reactFlowInstance?.fitView({ padding: 0.2, duration: 300 })}
+                    title="Centrar diagrama"
+                    aria-label="Centrar vista"
+                    className="p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-gray-600 hover:bg-gray-100 active:scale-95 transition-all"
+                  >
+                    <Maximize2 className="w-5 h-5" />
+                  </button>
+
+                  <button
+                    onClick={() => setShowMiniMap(!showMiniMap)}
+                    title={showMiniMap ? "Ocultar minimapa" : "Mostrar minimapa"}
+                    aria-label="Minimapa"
+                    className={`p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl transition-all ${
+                      showMiniMap ? 'bg-lila-light/40 text-lila-main font-bold' : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    <Map className="w-5 h-5" />
+                  </button>
+
+                  {canEdit && (
+                    <button
+                      onClick={handleDeleteSelected}
+                      disabled={!selectedNodeId && !selectedEdgeId}
+                      title="Eliminar elemento seleccionado"
+                      aria-label="Eliminar elemento"
+                      className={`p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl transition-all ${
+                        selectedNodeId || selectedEdgeId
+                          ? 'text-red-500 hover:bg-red-50 active:scale-95'
+                          : 'text-gray-300 cursor-not-allowed'
+                      }`}
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRightTab('inspector');
+                      setIsRightPanelOpen(!isRightPanelOpen);
+                    }}
+                    title="Abrir inspector de propiedades"
+                    aria-label="Inspector"
+                    className={`p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl transition-all relative ${
+                      isRightPanelOpen && rightTab === 'inspector' ? 'bg-lila-light/50 text-lila-main' : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    <Settings2 className="w-5 h-5" />
+                    {(selectedNodeId || selectedEdgeId) && (
+                      <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-lila-main rounded-full"></span>
+                    )}
+                  </button>
+
+                  {/* Conmutador a Modo Visualización */}
+                  <button
+                    type="button"
+                    onClick={() => setIsReadOnlyView(true)}
+                    title="Pasar a Modo Visualización (proteger cambios)"
+                    aria-label="Modo Visualización"
+                    className="p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-lila-main hover:bg-lila-light/30 active:scale-95 transition-all"
+                  >
+                    <Eye className="w-5 h-5" />
+                  </button>
+                </>
               )}
-
-              {/* 4. Centrar Diagrama (fitView) */}
-              <button
-                onClick={() => reactFlowInstance?.fitView({ padding: 0.2, duration: 300 })}
-                title="Centrar diagrama"
-                aria-label="Centrar vista"
-                className="p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-gray-600 hover:bg-gray-100 active:scale-95 transition-all"
-              >
-                <Maximize2 className="w-5 h-5" />
-              </button>
-
-              {/* 5. MiniMap Toggle */}
-              <button
-                onClick={() => setShowMiniMap(!showMiniMap)}
-                title={showMiniMap ? "Ocultar minimapa" : "Mostrar minimapa"}
-                aria-label="Minimapa"
-                className={`p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl transition-all ${showMiniMap ? 'bg-lila-light/40 text-lila-main font-bold' : 'text-gray-600 hover:bg-gray-100'}`}
-              >
-                <Map className="w-5 h-5" />
-              </button>
-
-              {/* 6. Eliminar elemento seleccionado */}
-              {canEdit && (
-                <button
-                  onClick={handleDeleteSelected}
-                  disabled={!selectedNodeId && !selectedEdgeId}
-                  title="Eliminar elemento seleccionado"
-                  aria-label="Eliminar elemento"
-                  className={`p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl transition-all ${
-                    selectedNodeId || selectedEdgeId
-                      ? 'text-red-500 hover:bg-red-50 active:scale-95'
-                      : 'text-gray-300 cursor-not-allowed'
-                  }`}
-                >
-                  <Trash2 className="w-5 h-5" />
-                </button>
-              )}
-
-              {/* 7. Inspector Sheet Toggle */}
-              <button
-                type="button"
-                onClick={() => {
-                  setRightTab('inspector');
-                  setIsRightPanelOpen(!isRightPanelOpen);
-                }}
-                title="Abrir inspector de propiedades"
-                aria-label="Inspector"
-                className={`p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl transition-all relative ${
-                  isRightPanelOpen && rightTab === 'inspector' ? 'bg-lila-light/50 text-lila-main' : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                <Settings2 className="w-5 h-5" />
-                {(selectedNodeId || selectedEdgeId) && (
-                  <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-lila-main rounded-full"></span>
-                )}
-              </button>
-
-              {/* 8. Chat del Proyecto Móvil */}
-              <button
-                type="button"
-                onClick={() => {
-                  setRightTab('chat');
-                  setIsRightPanelOpen(true);
-                }}
-                title="Abrir chat del proyecto"
-                aria-label="Chat del proyecto"
-                className={`p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl transition-all relative ${
-                  isRightPanelOpen && rightTab === 'chat' ? 'bg-lila-light/50 text-lila-main' : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                <MessageSquare className="w-5 h-5 text-lila-main" />
-              </button>
             </div>
           </div>
         </main>

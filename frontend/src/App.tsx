@@ -11,6 +11,8 @@ import UMLEditor from './pages/UMLEditor';
 import Proyectos from './pages/Proyectos';
 import Bitacora from './pages/Bitacora';
 import PwaUpdateToast from './components/pwa/PwaUpdateToast';
+import ContextualHelp from './components/help/ContextualHelp';
+import NotificationSettings from './pages/NotificationSettings';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const token = useAuthStore((state) => state.token);
@@ -37,6 +39,7 @@ export default function App() {
     <BrowserRouter>
       {/* Notificación de actualizaciones PWA disponible en toda la plataforma */}
       <PwaUpdateToast />
+      <ContextualHelp />
 
       <Routes>
         <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
@@ -48,6 +51,7 @@ export default function App() {
         <Route path="/proyectos/:id" element={<ProtectedRoute><ProjectDiagrams /></ProtectedRoute>} />
         <Route path="/diagramas/:id" element={<ProtectedRoute><UMLEditor /></ProtectedRoute>} />
         <Route path="/bitacora" element={<PermissionRoute permission="CONSULTAR_BITACORA"><Bitacora /></PermissionRoute>} />
+        <Route path="/configuracion/notificaciones" element={<ProtectedRoute><NotificationSettings /></ProtectedRoute>} />
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>

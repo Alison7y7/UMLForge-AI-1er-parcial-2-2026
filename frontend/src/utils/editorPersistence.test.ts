@@ -156,9 +156,37 @@ test('preserva tipos detectados, sugeridos y corregidos al mapear, guardar y rec
 
 test('rechaza un modelo persistido inválido para que la carga muestre un error', () => {
   assert.throws(
-    () => parsePersistedModel('{"clases":[]}'),
+    () => parsePersistedModel('{"invalido":true}'),
     /clases y relaciones válidas/
   );
+  assert.throws(
+    () => parsePersistedModel('{"clases":"no-un-arreglo"}'),
+    /clases y relaciones válidas/
+  );
+  assert.throws(
+    () => parsePersistedModel('{ invalid json'),
+    /clases y relaciones válidas/
+  );
+});
+
+test('normaliza modelos heredados con elements y connections', () => {
+  const legacy = parsePersistedModel('{"elements":[],"connections":[]}');
+  assert.deepEqual(legacy.clases, []);
+  assert.deepEqual(legacy.relaciones, []);
+  assert.deepEqual(legacy.advertencias, []);
+});
+
+test('normaliza payloads parciales como Condominio sin relaciones sin arrojar error', () => {
+  const partial = parsePersistedModel('{"clases":[{"id":"c-condo","nombre":"Condominio"}]}');
+  assert.equal(partial.clases.length, 1);
+  assert.equal(partial.clases[0].nombre, 'Condominio');
+  assert.deepEqual(partial.relaciones, []);
+});
+
+test('normaliza cadenas vacías y objetos nulos a diagramas vacíos válidos', () => {
+  assert.deepEqual(parsePersistedModel(''), { clases: [], relaciones: [], advertencias: [] });
+  assert.deepEqual(parsePersistedModel('{}'), { clases: [], relaciones: [], advertencias: [] });
+  assert.deepEqual(parsePersistedModel(null), { clases: [], relaciones: [], advertencias: [] });
 });
 
 test('aplica una versión remota nueva cuando el editor está limpio', () => {

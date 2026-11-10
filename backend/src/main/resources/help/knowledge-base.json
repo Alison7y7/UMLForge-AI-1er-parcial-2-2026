@@ -1,0 +1,204 @@
+{
+  "title": "Manual y tutorial de UMLForge AI",
+  "description": "Guía de las funciones disponibles en la aplicación. La ayuda explica pasos y permisos, pero no modifica proyectos ni diagramas.",
+  "suggestedQuestions": [
+    "¿Cómo incorporo a otra persona al proyecto?",
+    "¿Cómo agrego una clase al diagrama?",
+    "¿Cómo recupero una conversación anterior?",
+    "¿Cómo exporto el modelo XMI?",
+    "¿Cómo configuro notificaciones móviles?"
+  ],
+  "categories": [
+    {"id":"acceso","title":"Acceso y cuenta","description":"Inicio de sesión, registro y limitaciones actuales de recuperación."},
+    {"id":"proyectos","title":"Proyectos y participantes","description":"Crear, abrir y compartir proyectos según el rol."},
+    {"id":"modelado","title":"Editor UML e intercambio","description":"Clases, relaciones, guardado, XMI y generación de backend."},
+    {"id":"colaboracion","title":"Colaboración e IA","description":"Sincronización, chat compartido, revisión y decisiones."},
+    {"id":"continuidad","title":"Historial y continuidad","description":"Actividad persistida, conversaciones anteriores y reanudación."},
+    {"id":"movil","title":"Móvil y notificaciones","description":"Consulta desde el celular, PWA, permisos Push y HTTPS."}
+  ],
+  "articles": [
+    {
+      "id":"iniciar-sesion","category":"acceso","title":"Iniciar sesión","summary":"Accede con correo y contraseña desde la pantalla inicial.",
+      "contexts":["general","dashboard"],"anchors":["login","acceso"],"intents":["login","correo","contraseña"],
+      "phrases":["iniciar sesion","entrar al sistema"],"searchTerms":["inicio de sesión","correo","contraseña","acceso"],
+      "answer":"En la pantalla Inicia sesión escribe el correo electrónico y la contraseña de una cuenta registrada. Al validar los datos, la aplicación abre Panel con las opciones permitidas por tu rol.",
+      "steps":["Abre la ruta de inicio de sesión.","Completa Correo electrónico y Contraseña.","Pulsa Iniciar sesión."],
+      "links":[{"label":"Ir a iniciar sesión","url":"/login"}]
+    },
+    {
+      "id":"registrar-cuenta","category":"acceso","title":"Registrar una cuenta","summary":"Crea una cuenta nueva desde Regístrate.",
+      "contexts":["general"],"anchors":["registro"],"intents":["registro","cuenta","correo","rol"],
+      "phrases":["crear una cuenta","registrarme"],"searchTerms":["registro","cuenta","regístrate","anfitrión"],
+      "answer":"Desde Inicia sesión usa Regístrate. El formulario solicita nombre, apellido, correo, contraseña, confirmación y rol inicial disponible. Una cuenta creada vuelve a la pantalla de inicio de sesión.",
+      "steps":["En Inicia sesión pulsa Regístrate.","Completa los datos y confirma la contraseña.","Pulsa Crear cuenta y luego inicia sesión."],
+      "links":[{"label":"Abrir registro","url":"/register"}]
+    },
+    {
+      "id":"recuperar-contrasena","category":"acceso","title":"Recuperación de contraseña","summary":"La versión actual no ofrece recuperación automática.",
+      "contexts":["general"],"anchors":["recuperar_clave","contraseña","password"],"intents":["recuperar_clave","contraseña","cuenta"],
+      "phrases":["olvide mi contrasena","recuperar contrasena"],"searchTerms":["olvidé contraseña","recuperación","restablecer"],
+      "answer":"La versión actual no tiene un flujo de recuperación automática ni un botón Olvidé mi contraseña. No se debe inventar ni compartir una clave: solicita al administrador responsable el procedimiento autorizado.",
+      "steps":[],"links":[]
+    },
+    {
+      "id":"gestionar-proyectos","category":"proyectos","title":"Crear y abrir proyectos","summary":"Usa Proyectos para crear, buscar y abrir espacios UML.",
+      "contexts":["dashboard","proyectos"],"anchors":["proyecto"],"intents":["proyecto","generar","abrir","lista"],
+      "phrases":["nuevo proyecto","crear un proyecto","abrir un proyecto"],"searchTerms":["proyectos","nuevo proyecto","abrir","nombre","descripción"],
+      "answer":"La sección Proyectos lista los proyectos visibles. Si tu rol tiene permiso, Nuevo proyecto abre un formulario de nombre y descripción; Abrir proyecto entra a sus diagramas, equipo, chat e historial.",
+      "steps":["Abre Proyectos en la navegación.","Para crear, pulsa Nuevo proyecto, completa los datos y pulsa Guardar.","Para continuar uno existente, pulsa Abrir proyecto."],
+      "links":[{"label":"Ir a Proyectos","url":"/proyectos"}],"requiresProjectManagement":true
+    },
+    {
+      "id":"invitar-participantes","category":"proyectos","title":"Invitar participantes","summary":"Incorpora una cuenta registrada desde Equipo del proyecto.",
+      "contexts":["proyecto"],"anchors":["invitar","participante"],"intents":["invitar","participante","proyecto","correo","equipo"],
+      "phrases":["invitar a alguien","incorporar a otra persona","agregar participante"],"searchTerms":["invitar persona","participantes","equipo","correo","colaborador"],
+      "answer":"En el proyecto abre Equipo del proyecto y pulsa Invitar persona. La aplicación verifica que el correo pertenezca a una cuenta registrada y crea una invitación pendiente hasta que el destinatario la acepte.",
+      "steps":["Abre el proyecto y la pestaña Equipo del proyecto.","Pulsa Invitar persona y escribe el correo registrado.","Continúa por Acceso y Confirmar.","Pulsa Enviar invitación."],
+      "links":[{"label":"Ver proyectos","url":"/proyectos"}],"requiresProjectManagement":true
+    },
+    {
+      "id":"roles-permisos","category":"proyectos","title":"Roles y permisos","summary":"Distingue Administrador, Anfitrión y Colaborador.",
+      "contexts":["dashboard","proyectos","proyecto"],"anchors":["rol","administrador","anfitrion","colaborador"],"intents":["rol","administrador","anfitrion","colaborador","permiso"],
+      "phrases":["diferencia entre administrador anfitrion y colaborador","roles y permisos"],"searchTerms":["administrador","anfitrión","colaborador","roles","permisos"],
+      "answer":"Administrador gestiona funciones globales que sus permisos habilitan. Anfitrión crea y administra sus proyectos e invitaciones. Colaborador participa en proyectos a los que fue incorporado. La interfaz y las validaciones del servidor determinan la acción final disponible.",
+      "steps":[],"links":[]
+    },
+    {
+      "id":"usar-editor","category":"modelado","title":"Usar el editor UML","summary":"Conoce el lienzo, las herramientas, Inspector, Equipo y Chat.",
+      "contexts":["editor","proyecto"],"anchors":["editor","uml"],"intents":["editor","uml","diagrama","herramientas","inspector"],
+      "phrases":["usar el editor uml","abrir el editor"],"searchTerms":["editor UML","lienzo","herramientas","inspector","equipo","chat"],
+      "answer":"Abre un diagrama desde el proyecto. El editor combina el lienzo UML, herramientas de clases y relaciones, Inspector de propiedades, Equipo, Chat y el botón Guardar. En móvil comienza en visualización segura.",
+      "steps":["Abre Proyectos y entra al proyecto.","Abre un diagrama o crea uno si tienes permiso.","Usa las herramientas del lienzo y edita propiedades en Inspector.","Pulsa Guardar al finalizar."],
+      "links":[{"label":"Ver proyectos","url":"/proyectos"}]
+    },
+    {
+      "id":"crear-clase","category":"modelado","title":"Crear y editar una clase","summary":"Añade una clase desde la herramienta Clase y edítala en Inspector.",
+      "contexts":["editor"],"anchors":["clase"],"intents":["clase","generar","editor","inspector"],
+      "phrases":["agregar una clase","crear una clase"],"searchTerms":["clase","NuevaClase","inspector","nombre","estereotipo"],
+      "answer":"En el editor activa Modo Edición, elige Clase y toca o haz clic en el lienzo. Selecciona la clase creada y usa Inspector para cambiar nombre, estereotipo, atributos y métodos.",
+      "steps":["Activa Modo Edición si estás en visualización.","Selecciona Clase.","Toca el lienzo.","Edita la clase en Inspector y pulsa Guardar."],
+      "links":[{"label":"Abrir proyectos","url":"/proyectos"}]
+    },
+    {
+      "id":"atributos-metodos","category":"modelado","title":"Atributos y métodos","summary":"Edita los compartimentos de una clase desde Inspector.",
+      "contexts":["editor"],"anchors":["atributo","metodo"],"intents":["atributo","metodo","clase","inspector","parametros","retorno"],
+      "phrases":["agregar atributos","agregar metodos"],"searchTerms":["atributos","métodos","parámetros","retorno","visibilidad","tipo"],
+      "answer":"Selecciona una clase y abre Inspector. En Atributos puedes definir nombre, tipo y visibilidad. En Métodos puedes definir nombre, retorno, visibilidad y parámetros. Los controles de eliminación actúan sobre el elemento seleccionado.",
+      "steps":["Selecciona la clase.","Abre Inspector.","Añade o edita Atributos y Métodos.","Pulsa Guardar para persistir el modelo."],"links":[]
+    },
+    {
+      "id":"crear-relacion","category":"modelado","title":"Relacionar clases","summary":"Conecta origen y destino con un tipo UML disponible.",
+      "contexts":["editor"],"anchors":["relacion"],"intents":["relacion","clase","origen","destino"],
+      "phrases":["relacionar dos clases","conectar dos clases"],"searchTerms":["asociación","agregación","composición","generalización","dependencia","relaciones"],
+      "answer":"Elige Asociación, Agregación, Composición, Generalización o Dependencia. Selecciona primero la clase origen y luego la clase destino; después puedes ajustar el tipo y los roles en Inspector.",
+      "steps":["Activa Modo Edición.","Elige el tipo de relación.","Selecciona la clase origen.","Selecciona la clase destino y revisa Inspector.","Pulsa Guardar."],"links":[]
+    },
+    {
+      "id":"multiplicidades","category":"modelado","title":"Definir multiplicidades","summary":"Configura los extremos de una relación existente.",
+      "contexts":["editor"],"anchors":["multiplicidad"],"intents":["multiplicidad","relacion","origen","destino"],
+      "phrases":["definir multiplicidades","cambiar cardinalidad"],"searchTerms":["multiplicidad","cardinalidad","Mult. Origen","Mult. Destino","0..*","1"],
+      "answer":"Selecciona una relación y abre Inspector. Completa Mult. Origen y Mult. Destino con valores UML como 1, 0..1, * o 0..*. Guarda para persistirlos.",
+      "steps":["Selecciona la relación.","Abre Inspector.","Edita Mult. Origen y Mult. Destino.","Pulsa Guardar."],"links":[]
+    },
+    {
+      "id":"organizar-diagrama","category":"modelado","title":"Organizar el diagrama","summary":"Mueve clases manualmente y centra la vista.",
+      "contexts":["editor"],"anchors":["organizar"],"intents":["organizar","clase","diagrama","centrar"],
+      "phrases":["organizar el diagrama","acomodar las clases"],"searchTerms":["mover","organizar","centrar vista","ajustar a pantalla","zoom"],
+      "answer":"La versión actual permite arrastrar las clases para organizarlas manualmente. Usa Centrar vista o Ajustar a pantalla para recuperar el encuadre; no existe un botón de autoorganización que cambie el modelo.",
+      "steps":["Activa Seleccionar.","Arrastra cada clase a la posición deseada.","Usa Centrar vista o Ajustar a pantalla.","Pulsa Guardar."],"links":[]
+    },
+    {
+      "id":"guardar-diagrama","category":"modelado","title":"Guardar el diagrama","summary":"Persiste la versión actual con el botón Guardar.",
+      "contexts":["editor"],"anchors":["guardar"],"intents":["guardar","diagrama","version","cambios"],
+      "phrases":["guardar el diagrama","guardar los cambios"],"searchTerms":["guardar","guardando","guardado","versión","cambios"],
+      "answer":"Pulsa Guardar en la barra superior del editor. El estado del botón indica Guardando y luego confirma el resultado; la versión persistida es la que se recupera al volver al diagrama.",
+      "steps":["Revisa el modelo actual.","Pulsa Guardar.","Espera la confirmación antes de cerrar o cambiar de página."],"links":[]
+    },
+    {
+      "id":"importar-xmi","category":"modelado","title":"Importar XMI","summary":"Analiza un archivo XMI antes de incorporarlo al diagrama.",
+      "contexts":["editor"],"anchors":["importar"],"intents":["importar","xmi","archivo","modelo"],
+      "phrases":["importar xmi","cargar archivo xmi"],"searchTerms":["Importar XMI","Analizar XMI","Importar al diagrama","archivo"],
+      "answer":"En el editor abre Herramientas y opciones, selecciona Importar XMI y elige el archivo. Primero usa Analizar XMI para revisar clases, atributos, métodos y relaciones; solo después pulsa Importar al diagrama.",
+      "steps":["Abre Herramientas y opciones.","Pulsa Importar XMI y selecciona el archivo.","Pulsa Analizar XMI.","Revisa el resumen y pulsa Importar al diagrama.","Guarda el diagrama."],"links":[]
+    },
+    {
+      "id":"exportar-xmi","category":"modelado","title":"Exportar XMI","summary":"Descarga el modelo actual como XMI 2.1.",
+      "contexts":["editor"],"anchors":["exportar"],"intents":["exportar","xmi","descargar","modelo"],
+      "phrases":["exportar xmi","descargar modelo xmi"],"searchTerms":["Exportar XMI","Descargar XMI","XMI 2.1","Enterprise Architect"],
+      "answer":"En el editor abre Herramientas y opciones y selecciona Exportar XMI. Revisa el resumen del modelo y pulsa Descargar XMI. El archivo se genera con extensión .xmi; un diagrama vacío no se puede exportar.",
+      "steps":["Guarda y revisa el diagrama.","Abre Herramientas y opciones.","Pulsa Exportar XMI.","Pulsa Descargar XMI."],"links":[]
+    },
+    {
+      "id":"generar-backend","category":"modelado","title":"Generar backend Spring","summary":"Genera un ZIP desde un diagrama válido.",
+      "contexts":["editor"],"anchors":["backend"],"intents":["backend","generar","spring","zip","postgresql"],
+      "phrases":["generar backend","backend spring"],"searchTerms":["Generar Backend Spring","Spring Boot","PostgreSQL","Generar ZIP"],
+      "answer":"En Herramientas y opciones selecciona Generar Backend Spring. Revisa las clases y relaciones, completa la configuración PostgreSQL y confirma Generar ZIP. Esta acción es distinta de guardar o exportar XMI.",
+      "steps":["Completa y guarda el diagrama.","Abre Herramientas y opciones.","Pulsa Generar Backend Spring.","Revisa la configuración y pulsa Generar ZIP."],"links":[]
+    },
+    {
+      "id":"colaboracion-tiempo-real","category":"colaboracion","title":"Colaboración en tiempo real","summary":"Los miembros autorizados reciben cambios y presencia del proyecto.",
+      "contexts":["proyecto","editor"],"anchors":["colaboracion"],"intents":["colaboracion","equipo","cambios","presencia","diagrama"],
+      "phrases":["trabajar en tiempo real","colaboracion en tiempo real"],"searchTerms":["tiempo real","conectados ahora","presencia","sincronización","equipo"],
+      "answer":"Los participantes autorizados del mismo proyecto reciben presencia y cambios confirmados mediante la conexión en tiempo real. El backend persistido sigue siendo la fuente de verdad; si hay un conflicto, la aplicación no debe inventar ni mezclar datos de otro proyecto.",
+      "steps":["Abre el mismo diagrama con dos miembros autorizados.","Comprueba Conectados ahora.","Realiza y guarda un cambio.","Verifica que el otro participante reciba la actualización."],"links":[]
+    },
+    {
+      "id":"chat-compartido","category":"colaboracion","title":"Chat compartido del proyecto","summary":"Conserva mensajes y consultas de los miembros del proyecto.",
+      "contexts":["proyecto","editor","chat"],"anchors":["chat"],"intents":["chat","proyecto","ia","mensaje","compartir"],
+      "phrases":["chat del proyecto","chat compartido","conversacion con la ia"],"searchTerms":["Chat del proyecto","mensajes","adjuntos","IA compartida","conversación"],
+      "answer":"Chat del proyecto es compartido por sus participantes. Los mensajes se guardan en el proyecto y pueden incluir consultas a la IA; no uses la ayuda contextual para solicitar cambios UML.",
+      "steps":["Abre el proyecto o el editor.","Pulsa Chat o Chat del proyecto.","Escribe el mensaje o consulta.","Revisa la respuesta y las acciones disponibles."],"links":[{"label":"Ver proyectos","url":"/proyectos"}]
+    },
+    {
+      "id":"revisar-recomendaciones","category":"colaboracion","title":"Revisión y recomendaciones UML","summary":"Solicita una revisión y evalúa recomendaciones estructuradas.",
+      "contexts":["chat","editor","proyecto"],"anchors":["revision","recomendacion"],"intents":["revision","recomendacion","ia","diagrama","mejora"],
+      "phrases":["revisar el diagrama","solicitar recomendaciones"],"searchTerms":["revisión UML","recomendaciones","impacto","obsoleta","revalidar"],
+      "answer":"Desde Chat solicita una revisión UML del diagrama. La IA puede devolver recomendaciones estructuradas, pero ninguna cambia el modelo hasta que un usuario autorizado la aplica y el servidor la valida contra la versión actual.",
+      "steps":["Abre Chat y selecciona el diagrama correcto.","Solicita una revisión UML.","Lee justificación, impacto y estado de cada recomendación.","Aplica, descarta o revalida según corresponda."],"links":[]
+    },
+    {
+      "id":"decidir-recomendaciones","category":"colaboracion","title":"Aplicar, descartar y elegir alternativas","summary":"Cada decisión queda asociada a una recomendación real.",
+      "contexts":["chat","editor"],"anchors":["aplicar","descartar","alternativa"],"intents":["aplicar","descartar","alternativa","recomendacion","decision"],
+      "phrases":["aplicar una recomendacion","descartar una recomendacion","elegir alternativa"],"searchTerms":["Aplicar","Descartar","Aplicar compatibles","alternativas","confirmar eliminación"],
+      "answer":"En la tarjeta de recomendación usa Aplicar para confirmar un cambio compatible, Descartar para rechazarlo o elige una alternativa cuando se presenten opciones. Las eliminaciones requieren confirmación y las recomendaciones obsoletas deben revalidarse.",
+      "steps":["Revisa la recomendación y su impacto.","Si hay alternativas, elige o descarta una.","Pulsa Aplicar o Descartar.","Confirma una eliminación únicamente si corresponde."],"links":[]
+    },
+    {
+      "id":"historial-proyecto","category":"continuidad","title":"Historial y actividad","summary":"Consulta eventos persistidos con filtros y paginación.",
+      "contexts":["historial","proyecto","editor"],"anchors":["historial"],"intents":["historial","actividad","filtros","participante","diagrama","fecha"],
+      "phrases":["ver el historial","consultar actividad"],"searchTerms":["Historial y actividad","filtros","participante","diagrama","fechas","cargar más"],
+      "answer":"En el proyecto abre Historial y actividad. Puedes buscar y filtrar por tipo, participante, diagrama y fechas; la lista usa páginas para no cargar todo el historial. Un proyecto sin eventos muestra un estado vacío legítimo.",
+      "steps":["Abre el proyecto.","Selecciona Historial y actividad.","Ajusta filtros o búsqueda.","Carga más resultados si están disponibles."],"links":[{"label":"Ver proyectos","url":"/proyectos"}]
+    },
+    {
+      "id":"recuperar-conversacion","category":"continuidad","title":"Recuperar conversaciones anteriores","summary":"El chat persistido vuelve a cargarse al regresar al proyecto.",
+      "contexts":["chat","proyecto","historial"],"anchors":["chat"],"intents":["chat","anterior","historial","proyecto","recuperar"],
+      "phrases":["recuperar una conversacion anterior","mensajes anteriores"],"searchTerms":["conversaciones anteriores","mensajes persistidos","cargar más","chat"],
+      "answer":"Abre Chat del proyecto para recuperar los mensajes persistidos. La vista carga la conversación reciente y permite traer páginas anteriores; Historial y actividad muestra además decisiones y acciones relacionadas.",
+      "steps":["Abre el proyecto correcto.","Selecciona Chat del proyecto.","Usa Cargar mensajes anteriores si aparece.","Abre Historial y actividad para ampliar el contexto."],"links":[{"label":"Ver proyectos","url":"/proyectos"}]
+    },
+    {
+      "id":"continuar-sesion","category":"continuidad","title":"Continuar donde lo dejamos","summary":"Recupera el último diagrama y el resumen persistido.",
+      "contexts":["proyecto","editor"],"anchors":["continuidad","anterior"],"intents":["continuidad","anterior","sesion","diagrama","actividad"],
+      "phrases":["continuar una sesion anterior","retomar el proyecto","donde lo dejamos"],"searchTerms":["Continuar donde lo dejamos","última versión","última actividad","cambios recientes","pendientes IA"],
+      "answer":"Al abrir el proyecto, Continuar donde lo dejamos resume el último diagrama, su versión, la última actividad, cambios confirmados y recomendaciones pendientes. Abrir último diagrama recupera el modelo guardado sin ejecutar IA automáticamente.",
+      "steps":["Abre el proyecto.","Revisa Continuar donde lo dejamos.","Pulsa Abrir último diagrama o Ver historial.","Abre Chat solo si deseas consultar pendientes."],"links":[{"label":"Ver proyectos","url":"/proyectos"}]
+    },
+    {
+      "id":"consulta-movil","category":"movil","title":"Consultar desde el celular","summary":"Usa la PWA o el navegador para proyectos y diagramas.",
+      "contexts":["mobile","proyecto","editor"],"anchors":["mobile"],"intents":["mobile","proyecto","diagrama","pwa","visualizar"],
+      "phrases":["ver desde el celular","consultar en movil"],"searchTerms":["celular","móvil","PWA","instalar","visualización","modo edición"],
+      "answer":"Abre UMLForge AI desde un navegador compatible o instala la PWA. En móvil puedes consultar proyectos, abrir diagramas y revisar clases, atributos, métodos y relaciones. El editor inicia en visualización segura y el cambio a edición es voluntario.",
+      "steps":["Inicia sesión desde el celular.","Abre Proyectos y selecciona uno.","Abre Ver diagrama UML.","Usa zoom y desplazamiento; activa Modo Edición solo si lo necesitas y tu rol lo permite."],
+      "links":[{"label":"Ver proyectos","url":"/proyectos"}]
+    },
+    {
+      "id":"notificaciones-push","category":"movil","title":"Notificaciones móviles","summary":"Activa Push por dispositivo y elige preferencias.",
+      "contexts":["notificaciones","mobile"],"anchors":["notificacion","https"],"intents":["notificacion","mobile","https","permiso","push"],
+      "phrases":["configurar notificaciones moviles","activar notificaciones push","por que necesito https"],"searchTerms":["Notificaciones","Activar notificaciones","Enviar prueba","HTTPS","permiso","iOS"],
+      "answer":"Abre Notificaciones y pulsa Activar notificaciones. Debes conceder el permiso del navegador y elegir los eventos. Push requiere HTTPS, excepto localhost; en iOS compatible la PWA debe estar instalada y abierta desde la pantalla de inicio.",
+      "steps":["Abre Notificaciones.","Pulsa Activar notificaciones y acepta el permiso.","Elige las preferencias y guárdalas.","Usa Enviar prueba para comprobar este dispositivo."],
+      "links":[{"label":"Configurar notificaciones","url":"/configuracion/notificaciones"}]
+    }
+  ]
+}

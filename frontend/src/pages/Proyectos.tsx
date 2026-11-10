@@ -293,11 +293,18 @@ export default function Proyectos() {
                     </span>
                   </div>
 
-                  {/* Metadatos en Móvil */}
+                  {/* Metadatos en Móvil (CU21) */}
                   <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 pt-1 border-t border-gray-100">
                     <span className="inline-flex items-center gap-1 bg-gray-50 px-2 py-1 rounded-lg">
                       <UserIcon className="w-3 h-3 text-gray-400" />
                       <span className="font-medium truncate max-w-[150px]">{p.anfitrionNombre}</span>
+                    </span>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                      p.anfitrionNombre?.includes(user?.nombre || '')
+                        ? 'bg-pink-50 text-pink-700 border border-pink-100'
+                        : 'bg-lila-light/40 text-lila-main'
+                    }`}>
+                      {p.anfitrionNombre?.includes(user?.nombre || '') ? 'Anfitrión' : 'Participante'}
                     </span>
                     {p.fechaCreacion && (
                       <span className="inline-flex items-center gap-1 bg-gray-50 px-2 py-1 rounded-lg">
