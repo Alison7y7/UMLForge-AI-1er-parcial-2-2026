@@ -1,22 +1,54 @@
 package com.umlforge.backend.service;
 
 import com.umlforge.backend.entity.PushSubscription;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import nl.martijndwars.webpush.Notification;
 import nl.martijndwars.webpush.PushService;
+import nl.martijndwars.webpush.Utils;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.security.Security;
+
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class WebPushGateway {
     @Value("${push.vapid.public-key:}") private String publicKey;
     @Value("${push.vapid.private-key:}") private String privateKey;
-    @Value("${push.vapid.subject:mailto:admin@localhost}") private String subject;
+    @Value("${push.vapid.subject:mailto:admin@18.214.98.32.sslip.io}") private String subject;
+
+    @PostConstruct
+    public void init() {
+        registerBouncyCastle();
+    }
+
+    private synchronized void registerBouncyCastle() {
+        if (Security.getProvider(BouncyCastleProvider.PROVIDER_NAME) == null) {
+            Security.addProvider(new BouncyCastleProvider());
+            log.info("BouncyCastleProvider registrado exitosamente para Web Push");
+        }
+    }
 
     public int send(PushSubscription subscription, String payload) throws Exception {
-        PushService service = new PushService(publicKey, privateKey, subject);
-        return service.send(new Notification(subscription.getEndpoint(), subscription.getP256dh(),
-                subscription.getAuth(), payload)).getStatusLine().getStatusCode();
+        registerBouncyCastle();
+        PushService service = new PushService();
+        service.setPublicKey(Utils.loadPublicKey(publicKey));
+        service.setPrivateKey(Utils.loadPrivateKey(privateKey));
+        service.setSubject(subject);
+
+        Notification notification = new Notification(
+                subscription.getEndpoint(),
+                subscription.getP256dh(),
+                subscription.getAuth(),
+                payload
+        );
+        var response = service.send(notification);
+        int statusCode = response.getStatusLine().getStatusCode();
+        log.info("WebPush enviado. Status={} para subId={}", statusCode, subscription.getId());
+        return statusCode;
     }
 }

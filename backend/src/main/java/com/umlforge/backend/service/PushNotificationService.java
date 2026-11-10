@@ -3,6 +3,7 @@ package com.umlforge.backend.service;
 import com.umlforge.backend.entity.*;
 import com.umlforge.backend.repository.*;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -15,6 +16,7 @@ import tools.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.util.*;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PushNotificationService {
@@ -62,16 +64,37 @@ public class PushNotificationService {
             String content = message.contenido().toLowerCase(Locale.ROOT);
             participants.findByProyectoId(event.proyectoId()).stream()
                     .filter(p -> Boolean.TRUE.equals(p.getActivo()) && p.getUsuario().getCorreo() != null)
-                    .filter(p -> content.contains("@" + p.getUsuario().getCorreo().toLowerCase(Locale.ROOT)))
+                    .filter(p -> content.contains("@" + p.getUsuario().getCorreo().toLowerCase(Locale.ROOT))
+                            || (p.getUsuario().getNombre() != null && !p.getUsuario().getNombre().isBlank()
+                                && content.contains("@" + p.getUsuario().getNombre().toLowerCase(Locale.ROOT))))
                     .forEach(p -> mentioned.add(p.getUsuario().getId()));
             Proyecto project = projects.findById(event.proyectoId()).orElse(null);
             if (project != null && project.getAnfitrion() != null && project.getAnfitrion().getCorreo() != null
-                    && content.contains("@" + project.getAnfitrion().getCorreo().toLowerCase(Locale.ROOT)))
+                    && (content.contains("@" + project.getAnfitrion().getCorreo().toLowerCase(Locale.ROOT))
+                        || (project.getAnfitrion().getNombre() != null && !project.getAnfitrion().getNombre().isBlank()
+                            && content.contains("@" + project.getAnfitrion().getNombre().toLowerCase(Locale.ROOT))))) {
                 mentioned.add(project.getAnfitrion().getId());
-            if (!mentioned.isEmpty()) deliver(new PushNotificationEvent("mention:" + message.id(),
-                    PushCategory.MENCION, event.proyectoId(), message.emisorId(), mentioned,
-                    "Te mencionaron en el chat", clean(message.emisorNombre(), 60) + " te mencionó en un proyecto",
-                    "/proyectos/" + event.proyectoId()));
+            }
+            if (content.contains("@todos") || content.contains("@all")) {
+                if (project != null && project.getAnfitrion() != null) mentioned.add(project.getAnfitrion().getId());
+                participants.findByProyectoId(event.proyectoId()).stream()
+                        .filter(p -> Boolean.TRUE.equals(p.getActivo()))
+                        .forEach(p -> mentioned.add(p.getUsuario().getId()));
+            }
+
+            if (!mentioned.isEmpty()) {
+                deliver(new PushNotificationEvent("mention:" + message.id(),
+                        PushCategory.MENCION, event.proyectoId(), message.emisorId(), mentioned,
+                        "Te mencionaron en el chat", clean(message.emisorNombre(), 60) + ": " + clean(message.contenido(), 120),
+                        "/proyectos/" + event.proyectoId()));
+            } else {
+                String projectName = project != null ? project.getNombre() : "Proyecto";
+                deliver(new PushNotificationEvent("chat:" + message.id(),
+                        PushCategory.MENCION, event.proyectoId(), message.emisorId(), Set.of(),
+                        "Mensaje en " + clean(projectName, 40),
+                        clean(message.emisorNombre(), 40) + ": " + clean(message.contenido(), 120),
+                        "/proyectos/" + event.proyectoId()));
+            }
         } else if (message.tipoEmisor() == TipoEmisorChat.SISTEMA
                 && message.contenido() != null && !message.contenido().toLowerCase(Locale.ROOT).contains("recomendaci")) {
             deliver(new PushNotificationEvent("decision:" + message.id(), PushCategory.RECOMENDACION,
@@ -90,7 +113,9 @@ public class PushNotificationService {
 
     void deliver(PushNotificationEvent event) {
         if (!configured()) return;
-        for (Long recipientId : recipients(event)) {
+        Set<Long> recips = recipients(event);
+        log.info("Entregando evento push {} (categoría {}) para {} destinatarios candidatos", event.eventKey(), event.category(), recips.size());
+        for (Long recipientId : recips) {
             if (recipientId == null || recipientId.equals(event.actorId()) || !allowed(recipientId, event.category())) continue;
             for (PushSubscription subscription : subscriptions.findByUsuarioIdAndActivaTrue(recipientId)) {
                 if (deliveries.existsByEventKeyAndUsuarioIdAndSubscriptionId(event.eventKey(), recipientId, subscription.getId())) continue;
@@ -134,13 +159,17 @@ public class PushNotificationService {
                 subscription.setUltimoExito(Instant.now()); subscription.setFallosConsecutivos(0);
                 subscriptions.save(subscription);
                 deliveries.save(new PushDelivery(event.eventKey(), recipientId, subscription.getId()));
+                log.info("Push entregado con éxito a usuario {} (subId={})", recipientId, subscription.getId());
             } else if (status == 404 || status == 410) {
                 subscription.setActiva(false); subscriptions.save(subscription);
+                log.warn("Suscripción {} desactivada por status {}", subscription.getId(), status);
             } else {
                 registerFailure(subscription);
+                log.warn("Servicio push devolvió status {} para subId {}", status, subscription.getId());
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
             registerFailure(subscription);
+            log.warn("Error enviando push a subId {}: {}", subscription.getId(), e.getMessage(), e);
         }
     }
 

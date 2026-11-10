@@ -43,8 +43,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <Logo className="w-8 h-8 shrink-0" />
           <span className="font-bold text-base text-text-dark tracking-tight">IA de UMLForge</span>
         </Link>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <PwaInstallButton />
+          <Link
+            to="/configuracion/notificaciones"
+            className="p-2 text-gray-500 hover:text-lila-main rounded-xl hover:bg-lila-light/30 transition-colors"
+            title="Configurar Notificaciones"
+            aria-label="Notificaciones"
+          >
+            <Bell className="w-5 h-5" />
+          </Link>
           <button 
             type="button"
             onClick={() => setSidebarOpen(!isSidebarOpen)} 

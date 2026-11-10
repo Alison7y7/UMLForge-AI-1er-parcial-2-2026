@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { api } from '../api/axios';
 import { 
   Folder, Plus, Edit2, Play, Square, ExternalLink, 
-  X, CheckCircle2, XCircle, ArrowRight, User as UserIcon
+  X, CheckCircle2, XCircle, ArrowRight, User as UserIcon, Bell
 } from 'lucide-react';
 import Layout from '../components/Layout';
 
@@ -141,6 +141,25 @@ export default function Dashboard() {
             Administra tus proyectos y continúa trabajando en tus diagramas UML.
           </p>
         </div>
+      </div>
+
+      {/* Acceso rápido a Web Push y Notificaciones */}
+      <div className="mb-8 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-lila-light/40 to-pink-light/30 border border-lila-light/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 rounded-xl bg-white text-lila-main shadow-xs shrink-0">
+            <Bell className="w-5 h-5" />
+          </div>
+          <div>
+            <h4 className="text-sm font-bold text-text-dark">Notificaciones Web Push</h4>
+            <p className="text-xs text-gray-600">Recibe avisos de cambios UML, invitaciones y mensajes en tiempo real en tu celular o PC.</p>
+          </div>
+        </div>
+        <Link
+          to="/configuracion/notificaciones"
+          className="self-start sm:self-auto px-4 py-2 bg-white hover:bg-lila-light/20 text-lila-main font-bold text-xs rounded-xl border border-lila-light/60 shadow-xs transition-colors shrink-0"
+        >
+          Gestionar notificaciones
+        </Link>
       </div>
 
       {/* Invitaciones Pendientes */}

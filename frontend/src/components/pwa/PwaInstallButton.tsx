@@ -53,30 +53,35 @@ export default function PwaInstallButton({ className = '', variant = 'compact' }
 
       {/* Modal de instrucciones para navegadores sin prompt automático (iOS o navegadores de escritorio) */}
       {showInstructions && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-fade-in">
-          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl border border-gray-100 p-6 overflow-hidden">
+        <div 
+          className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-gray-900/60 backdrop-blur-xs overflow-y-auto animate-fade-in"
+          onMouseDown={(e) => { if (e.target === e.currentTarget) setShowInstructions(false); }}
+        >
+          <div className="relative w-full max-w-md max-h-[88dvh] bg-white rounded-3xl shadow-2xl border border-gray-100 flex flex-col overflow-hidden my-auto">
             
-            {/* Header del modal */}
-            <div className="flex items-center justify-between pb-4 border-b border-gray-100">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-lila-light/40 flex items-center justify-center text-lila-main font-bold">
+            {/* Header del modal fijo arriba */}
+            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-gray-100 bg-white/95 backdrop-blur-xs shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-2xl bg-lila-light/40 flex items-center justify-center text-lila-main font-bold shrink-0">
                   <Smartphone className="w-5 h-5" />
                 </div>
-                <div>
-                  <h3 className="text-base font-bold text-gray-900">Instalar UMLForge AI</h3>
-                  <p className="text-xs text-gray-500">Úsala como aplicación nativa en tu dispositivo</p>
+                <div className="min-w-0">
+                  <h3 className="text-base font-bold text-gray-900 truncate">Instalar UMLForge AI</h3>
+                  <p className="text-xs text-gray-500 truncate">Úsala como aplicación nativa en tu dispositivo</p>
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => setShowInstructions(false)}
-                className="p-1.5 text-gray-400 hover:text-gray-700 rounded-full hover:bg-gray-100 transition-colors"
+                className="p-2 text-gray-400 hover:text-gray-700 rounded-full hover:bg-gray-100 transition-colors min-w-[40px] min-h-[40px] flex items-center justify-center shrink-0"
+                aria-label="Cerrar instrucciones"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Contenido según plataforma */}
-            <div className="py-5 space-y-4 text-sm text-gray-700">
+            {/* Contenido según plataforma con scroll interno */}
+            <div className="p-4 sm:p-5 overflow-y-auto overscroll-contain space-y-4 text-sm text-gray-700 flex-1">
               {platform === 'ios' ? (
                 <div className="space-y-3">
                   <p className="font-medium text-gray-800">

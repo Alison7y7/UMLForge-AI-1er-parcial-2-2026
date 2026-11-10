@@ -1200,56 +1200,69 @@ export default function UMLEditor() {
             </div>
             <div className="flex flex-col gap-2">
               {((selectedNode.data.atributos as any[]) || []).map((attr, idx) => (
-                <div key={attr.id} className="flex gap-1.5 items-center p-2 bg-gray-50 border border-gray-200/80 rounded-xl">
-                  <select 
-                    className="bg-white border border-gray-200 rounded-lg text-xs px-1.5 py-1.5 min-h-[36px] font-bold text-gray-700"
-                    disabled={!canEdit}
-                    value={attr.visibilidad}
-                    onChange={(e) => {
-                      const arr = [...(selectedNode.data.atributos as any[])];
-                      arr[idx].visibilidad = e.target.value;
-                      handleUpdateNodeData(selectedNode.id, { atributos: arr });
-                    }}
-                  >
-                    <option value="unspecified">?</option>
-                    <option value="public">+</option>
-                    <option value="private">-</option>
-                    <option value="protected">#</option>
-                  </select>
-                  <input 
-                    className="flex-1 bg-white border border-gray-200 rounded-lg text-xs px-2.5 py-1.5 min-h-[36px] focus:outline-none focus:ring-1 focus:ring-lila-main"
-                    disabled={!canEdit}
-                    value={attr.nombre}
-                    onChange={(e) => {
-                      const arr = [...(selectedNode.data.atributos as any[])];
-                      arr[idx].nombre = e.target.value;
-                      handleUpdateNodeData(selectedNode.id, { atributos: arr });
-                    }}
-                  />
-                  <input 
-                    className="w-24 bg-white border border-gray-200 rounded-lg text-xs px-2 py-1.5 min-h-[36px] focus:outline-none focus:ring-1 focus:ring-lila-main font-mono"
-                    disabled={!canEdit}
-                    value={attr.tipo}
-                    onChange={(e) => {
-                      const arr = [...(selectedNode.data.atributos as any[])];
-                      arr[idx].tipo = e.target.value;
-                      arr[idx].origenTipo = 'USUARIO';
-                      handleUpdateNodeData(selectedNode.id, { atributos: arr });
-                    }}
-                  />
-                  {canEdit && (
-                    <button 
-                      onClick={() => {
+                <div key={attr.id} className="flex flex-col gap-1.5 p-2 bg-gray-50 border border-gray-200/80 rounded-xl min-w-0 w-full box-border">
+                  <div className="flex gap-1.5 items-center min-w-0 w-full">
+                    <select 
+                      className="bg-white border border-gray-200 rounded-lg text-xs px-2 py-1.5 min-h-[38px] font-bold text-gray-700 shrink-0"
+                      disabled={!canEdit}
+                      value={attr.visibilidad}
+                      title="Visibilidad del atributo"
+                      onChange={(e) => {
                         const arr = [...(selectedNode.data.atributos as any[])];
-                        arr.splice(idx, 1);
+                        arr[idx].visibilidad = e.target.value;
                         handleUpdateNodeData(selectedNode.id, { atributos: arr });
-                      }} 
-                      className="p-1.5 min-w-[36px] min-h-[36px] flex items-center justify-center text-gray-400 hover:text-red-500 rounded-lg transition-colors"
-                      title="Eliminar atributo"
+                      }}
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
+                      <option value="unspecified">?</option>
+                      <option value="public">+</option>
+                      <option value="private">-</option>
+                      <option value="protected">#</option>
+                    </select>
+                    <input 
+                      className="flex-1 min-w-0 bg-white border border-gray-200 rounded-lg text-xs px-2.5 py-1.5 min-h-[38px] focus:outline-none focus:ring-1 focus:ring-lila-main"
+                      disabled={!canEdit}
+                      placeholder="nombreAtributo"
+                      value={attr.nombre}
+                      onChange={(e) => {
+                        const arr = [...(selectedNode.data.atributos as any[])];
+                        arr[idx].nombre = e.target.value;
+                        handleUpdateNodeData(selectedNode.id, { atributos: arr });
+                      }}
+                    />
+                    {canEdit && (
+                      <button 
+                        onClick={() => {
+                          const arr = [...(selectedNode.data.atributos as any[])];
+                          arr.splice(idx, 1);
+                          handleUpdateNodeData(selectedNode.id, { atributos: arr });
+                        }} 
+                        className="p-1.5 min-w-[38px] min-h-[38px] shrink-0 flex items-center justify-center text-gray-400 hover:text-red-500 rounded-lg transition-colors hover:bg-red-50"
+                        title="Eliminar atributo"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 min-w-0 w-full">
+                    <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide shrink-0 pl-1">Tipo:</span>
+                    <input 
+                      className="flex-1 min-w-0 bg-white border border-gray-200 rounded-lg text-xs px-2.5 py-1 min-h-[34px] focus:outline-none focus:ring-1 focus:ring-lila-main font-mono"
+                      disabled={!canEdit}
+                      placeholder="String, int, float..."
+                      value={attr.tipo}
+                      onChange={(e) => {
+                        const arr = [...(selectedNode.data.atributos as any[])];
+                        arr[idx].tipo = e.target.value;
+                        arr[idx].origenTipo = 'USUARIO';
+                        handleUpdateNodeData(selectedNode.id, { atributos: arr });
+                      }}
+                    />
+                    {attr.origenTipo && attr.origenTipo !== 'USUARIO' && (
+                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 font-medium shrink-0">
+                        {attr.origenTipo}
+                      </span>
+                    )}
+                  </div>
                 </div>
               ))}
               {(!selectedNode.data.atributos || selectedNode.data.atributos.length === 0) && (
@@ -1276,12 +1289,13 @@ export default function UMLEditor() {
             </div>
             <div className="flex flex-col gap-2">
               {((selectedNode.data.metodos as any[]) || []).map((method, idx) => (
-                <div key={method.id} className="flex flex-col gap-2 p-2.5 bg-gray-50 border border-gray-200/80 rounded-xl">
-                  <div className="flex gap-1.5 items-center">
+                <div key={method.id} className="flex flex-col gap-2 p-2.5 bg-gray-50 border border-gray-200/80 rounded-xl min-w-0 w-full box-border">
+                  <div className="flex gap-1.5 items-center min-w-0 w-full">
                     <select 
-                      className="bg-white border border-gray-200 rounded-lg text-xs px-1.5 py-1.5 min-h-[36px] font-bold text-gray-700"
+                      className="bg-white border border-gray-200 rounded-lg text-xs px-2 py-1.5 min-h-[38px] font-bold text-gray-700 shrink-0"
                       disabled={!canEdit}
                       value={method.visibilidad}
+                      title="Visibilidad del método"
                       onChange={(e) => {
                         const arr = [...(selectedNode.data.metodos as any[])];
                         arr[idx].visibilidad = e.target.value;
@@ -1294,10 +1308,10 @@ export default function UMLEditor() {
                       <option value="protected">#</option>
                     </select>
                     <input 
-                      className="flex-1 bg-white border border-gray-200 rounded-lg text-xs px-2.5 py-1.5 min-h-[36px] focus:outline-none focus:ring-1 focus:ring-lila-main"
+                      className="flex-1 min-w-0 bg-white border border-gray-200 rounded-lg text-xs px-2.5 py-1.5 min-h-[38px] focus:outline-none focus:ring-1 focus:ring-lila-main"
                       disabled={!canEdit}
                       value={method.nombre}
-                      placeholder="nombre"
+                      placeholder="nombreMetodo"
                       onChange={(e) => {
                         const arr = [...(selectedNode.data.metodos as any[])];
                         arr[idx].nombre = e.target.value;
@@ -1311,18 +1325,18 @@ export default function UMLEditor() {
                           arr.splice(idx, 1);
                           handleUpdateNodeData(selectedNode.id, { metodos: arr });
                         }} 
-                        className="p-1.5 min-w-[36px] min-h-[36px] flex items-center justify-center text-gray-400 hover:text-red-500 rounded-lg"
+                        className="p-1.5 min-w-[38px] min-h-[38px] shrink-0 flex items-center justify-center text-gray-400 hover:text-red-500 rounded-lg transition-colors hover:bg-red-50"
                         title="Eliminar método"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     )}
                   </div>
 
                   {/* Parámetros del método */}
-                  <div className="bg-white/80 p-2 rounded-lg border border-gray-100 space-y-1.5">
+                  <div className="bg-white/90 p-2 rounded-lg border border-gray-100 space-y-1.5 min-w-0 w-full">
                     <div className="flex justify-between items-center">
-                      <span className="text-[10px] font-bold text-gray-500 uppercase">Parámetros</span>
+                      <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Parámetros</span>
                       {canEdit && (
                         <button 
                           onClick={() => {
@@ -1337,9 +1351,9 @@ export default function UMLEditor() {
                       )}
                     </div>
                     {(Array.isArray(method.parametros) ? method.parametros : []).map((p: any, pIdx: number) => (
-                      <div key={pIdx} className="flex gap-1.5 items-center">
+                      <div key={pIdx} className="flex gap-1.5 items-center min-w-0 w-full">
                         <input 
-                          className="flex-1 bg-white border border-gray-200 rounded text-xs px-2 py-1 min-h-[30px]"
+                          className="flex-1 min-w-0 bg-white border border-gray-200 rounded-lg text-xs px-2 py-1 min-h-[32px]"
                           disabled={!canEdit}
                           value={p.nombre}
                           placeholder="nombre"
@@ -1349,9 +1363,9 @@ export default function UMLEditor() {
                             handleUpdateNodeData(selectedNode.id, { metodos: arr });
                           }}
                         />
-                        <span className="text-xs text-gray-400">:</span>
+                        <span className="text-xs text-gray-400 shrink-0">:</span>
                         <input 
-                          className="w-20 bg-white border border-gray-200 rounded text-xs px-2 py-1 min-h-[30px] font-mono"
+                          className="w-24 min-w-0 bg-white border border-gray-200 rounded-lg text-xs px-2 py-1 min-h-[32px] font-mono"
                           disabled={!canEdit}
                           value={p.tipo}
                           placeholder="tipo"
@@ -1368,9 +1382,9 @@ export default function UMLEditor() {
                               arr[idx].parametros.splice(pIdx, 1);
                               handleUpdateNodeData(selectedNode.id, { metodos: arr });
                             }} 
-                            className="p-1 text-gray-400 hover:text-red-500"
+                            className="p-1 min-w-[32px] min-h-[32px] shrink-0 flex items-center justify-center text-gray-400 hover:text-red-500 rounded-lg transition-colors hover:bg-red-50"
                           >
-                            <Trash2 className="w-3 h-3" />
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         )}
                       </div>
@@ -1378,10 +1392,10 @@ export default function UMLEditor() {
                   </div>
 
                   {/* Retorno */}
-                  <div className="flex gap-2 items-center justify-between pt-1 border-t border-gray-100">
-                    <span className="text-[11px] font-bold text-gray-500">Retorno:</span>
+                  <div className="flex gap-2 items-center justify-between pt-1 border-t border-gray-100 min-w-0 w-full">
+                    <span className="text-[11px] font-bold text-gray-500 shrink-0">Retorno:</span>
                     <input 
-                      className="w-28 bg-white border border-gray-200 rounded-lg text-xs px-2.5 py-1.5 min-h-[34px] font-mono"
+                      className="flex-1 min-w-0 bg-white border border-gray-200 rounded-lg text-xs px-2.5 py-1.5 min-h-[34px] font-mono"
                       disabled={!canEdit}
                       value={method.tipoRetorno}
                       placeholder="void"
@@ -2555,7 +2569,7 @@ export default function UMLEditor() {
         </aside>
 
         {/* INSPECTOR MÓVIL Y TABLET (BOTTOM SHEET DESPLEGABLE < lg) */}
-        <div className={`fixed inset-0 z-50 lg:hidden transition-all duration-300 ${isRightPanelOpen ? 'visible' : 'invisible pointer-events-none'}`}>
+        <div className={`fixed inset-0 z-[95] lg:hidden transition-all duration-300 ${isRightPanelOpen ? 'visible' : 'invisible pointer-events-none'}`}>
           {/* Fondo oscuro para cerrar */}
           <div 
             className={`fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity duration-300 ${isRightPanelOpen ? 'opacity-100' : 'opacity-0'}`} 

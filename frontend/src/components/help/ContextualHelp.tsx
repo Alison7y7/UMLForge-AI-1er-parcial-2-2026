@@ -155,7 +155,7 @@ export default function ContextualHelp() {
     <button
       type="button"
       onClick={() => setOpen(true)}
-      className="fixed z-[90] right-4 bottom-[calc(5.5rem+env(safe-area-inset-bottom,0px))] md:bottom-6 md:right-6 flex items-center gap-2 rounded-full bg-gradient-to-r from-[#8B5CF6] to-[#F472B6] text-white shadow-xl px-4 py-3 font-bold text-sm"
+      className={`fixed z-[90] right-4 bottom-[calc(5.5rem+env(safe-area-inset-bottom,0px))] md:bottom-6 md:right-6 flex items-center gap-2 rounded-full bg-gradient-to-r from-[#8B5CF6] to-[#F472B6] text-white shadow-xl px-4 py-3 font-bold text-sm ${location.pathname.startsWith('/diagramas') ? 'hidden md:flex' : ''}`}
       aria-label="Abrir ayuda contextual"
     >
       <CircleHelp className="w-5 h-5" />
