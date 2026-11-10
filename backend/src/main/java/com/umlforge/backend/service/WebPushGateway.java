@@ -4,6 +4,7 @@ import com.umlforge.backend.entity.PushSubscription;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import nl.martijndwars.webpush.Encoding;
 import nl.martijndwars.webpush.Notification;
 import nl.martijndwars.webpush.PushService;
 import nl.martijndwars.webpush.Utils;
@@ -46,7 +47,7 @@ public class WebPushGateway {
                 subscription.getAuth(),
                 payload
         );
-        var response = service.send(notification);
+        var response = service.send(notification, Encoding.AES128GCM);
         int statusCode = response.getStatusLine().getStatusCode();
         String responseBody = "";
         try {
@@ -54,7 +55,7 @@ public class WebPushGateway {
                 responseBody = org.apache.http.util.EntityUtils.toString(response.getEntity());
             }
         } catch (Exception ignored) {}
-        log.info("WebPush enviado. Status={} para subId={}, respuesta={}", statusCode, subscription.getId(), responseBody);
+        log.info("WebPush enviado con AES128GCM. Status={} para subId={}, respuesta={}", statusCode, subscription.getId(), responseBody);
         return statusCode;
     }
 }
